@@ -1,6 +1,6 @@
 # HinddY Garage MVP
 
-Standalone PC-browser proving grounds for Quadro and BuggY. This directory is
+Standalone desktop/tablet-browser proving grounds for Quadro and BuggY. This directory is
 an implementation laboratory, not a new AlexY OS guidebook route or content
 kind.
 
@@ -14,7 +14,7 @@ kind.
 - Fixed 60 Hz physics step, checkpoints, lap counting, wrong-way notice,
   boundary recovery and manual reset.
 - Versioned world and vehicle parameters under `src/specs/`.
-- Keyboard controls and a small accessible HTML HUD.
+- Keyboard and multitouch controls with an accessible, responsive HTML HUD.
 
 ## Run
 
@@ -38,10 +38,12 @@ Open the local URL printed by Vite. Controls:
 - `R`: return to the last safe checkpoint
 - `Shift + W` (or `Shift + ArrowUp`): manual BuggY turbo; Shift alone boosts an already running Cruise
 - Mouse wheel: move the follow camera closer or farther away
-- Camera menu: Drone follows the vehicle by default; Observation enables a fixed inspection point
-- In Observation, left click the ground or vehicle to move the inspection point
-- In Observation, right click a point, then drag to orbit around it
-- `F`: return to the drone camera
+- Right mouse drag: orbit 360° around the moving vehicle
+- `F` / **Centre view**: centre the drone behind the vehicle
+- Circular pad: hold ▲ for throttle, ◀/▶ to steer, ▼ to brake/reverse
+- Centre **TURBO**: hold with throttle on BuggY, or during active Cruise
+- Tablet: drag the scene with one finger to orbit; pinch with two to zoom
+- **Reset**: return to the last safe checkpoint without a keyboard
 
 ## Verify
 
@@ -64,7 +66,7 @@ become an authoritative collider source.
 
 Choose **Quadro** or **BuggY** in the garage panel. Switching vehicle starts a new
 session on the current proving ground. The URL option `?vehicle=buggy` selects
-BuggY initially. Both cars keep the same keyboard and inspection controls.
+BuggY initially. Both cars keep the same keyboard, touch and drone controls.
 
 Quadro keeps the navy open frame, orange bench, central lantern, exposed engine
 and thin crossed spokes. BuggY has a silver roll cage, orange bonnet, radiator
@@ -94,8 +96,8 @@ geometry, tyre radius, shared wheel buffers and an 18k triangle / 24 draw ceilin
   overlapping boxes. Width/bank interpolation follows the spline parameter.
   Render and static triangle colliders derive from the same authoritative
   cross-sections; collision remains complete before visual streaming.
-- Inspection picking selects the closest hit. Switching clears drive input.
-  Disposal includes templates that have not yet been streamed.
+- Switching clears keyboard and touch input. Disposal includes templates that
+  have not yet been streamed.
 - Development snapshots expose vehicle ID, draw calls, triangles and resident
   geometries through `window.__hinddy.snapshot()`.
 
@@ -146,13 +148,12 @@ also expose boost, active exhaust particles, audio state/volume and texture coun
 
 ## Drone camera and Bonneville morning
 
-The Camera menu explicitly selects **Drone · follow** or **Observation · orbit**.
-Drone is the default on every ground and after switching vehicles/grounds. It
-follows vehicle translation at a fixed relative distance, including during turbo;
-heading changes are smoothed and the horizon stays level. Clicking the canvas
-does not leave drone mode. The wheel adjusts drone distance. F returns to the
-drone; in Observation, the camera stays around its chosen world point while the
-vehicle moves, and clicking/right-dragging chooses and orbits an inspection point.
+One drone camera follows the vehicle on every ground. There is no camera mode
+switch. Right mouse drag or touch drag orbits around the car while continuing to
+follow its translation. The horizon stays level and heading changes are smoothed.
+After two seconds without an orbit gesture, a moving car's view smoothly returns
+behind it; at rest the chosen angle stays. Wheel/pinch adjusts distance within
+4–20 m. F or **Centre view** centres the drone immediately.
 
 Bonneville uses an early-morning palette: muted off-white salt, warm sunlight,
 cool ambient fill and long blue-grey shadows. The shared solar direction sets
@@ -162,7 +163,7 @@ lights or downloaded assets. Other proving grounds retain their lighting.
 
 ## Optional Bonneville cruise
 
-Manual remains the default. On P04, select **Driving → Cruise · tap W** and choose
+Manual remains the default. On P04, select **Driving → Cruise** and choose
 20–55 km/h (default 40). Selecting the mode does not start the car: tap W/ArrowUp
 or click **Start cruise**. The car holds that speed without holding the throttle.
 A/D still steer. Hold Shift for temporary turbo; releasing Shift smoothly lowers
@@ -180,3 +181,27 @@ query behaviour has been removed; automatic driving is now an explicit mode.
 Development snapshots include drive mode, cruise state/selected speed and the
 resolved drive input for regression checks. Engine audio/exhaust respond to
 actual drive load, including partial-throttle cruise.
+
+## Unified input and tablet verification
+
+The circular pad uses native Pointer Events and pointer capture, with an independent
+input source for each finger. Throttle, steering, turbo and camera gestures can be
+combined. Pointer cancellation, reset, switching, blur and hidden tabs clear held
+input. The pad also supports keyboard focus and Space/Enter. Tablet controls have
+at least 44px targets, respect safe areas, and use a 1.25 pixel-ratio cap to limit
+rendering cost. No new dependencies were added.
+
+A startup issue was reproduced at https://hinddy.vercel.app: with the volume
+slider focused, holding W left Quadro at 0 km/h; removing focus allowed it to
+accelerate. The input handler now accepts WASD/Shift from range/select controls
+while preserving their native arrow-key editing and actual text entry. Pointer
+selection of settings returns focus to the canvas. This fix requires a new deploy.
+
+Validation: 17 unit tests, TypeScript and production build passed. Browser checks
+on the local production build covered all seven eligible car/ground combinations:
+keyboard launch with the volume slider focused, braking, reset and pad launch.
+Touch emulation covered all four grounds, independent finger release, concurrent
+throttle/steering/turbo, orbit while driving, pinch and touch cancellation, with
+no JavaScript errors. Landscape (1024×768) and portrait (768×1024) layouts were
+checked. These are Chromium touch-emulation results, not a physical iPad/Safari
+performance certification.

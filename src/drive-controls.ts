@@ -1,5 +1,6 @@
 import type { DriveInput } from "./vehicle";
 
+export type DriveAction = "forward" | "brake" | "left" | "right" | "turbo";
 export type DriveMode = "manual" | "cruise";
 const throttleKeys = ["KeyW", "ArrowUp"];
 const brakeKeys = ["KeyS", "ArrowDown"];
@@ -8,6 +9,18 @@ const drivingKeys = new Set([...throttleKeys, ...brakeKeys, "KeyA", "KeyD", "Arr
 /** Explicit input state: only a fresh throttle press can arm a cancelled cruise. */
 export class DriveControls {
   private readonly pressed = new Set<string>();
+  private readonly actions = new Map<string, DriveAction>();
+  actionHeld(action: DriveAction): boolean {
+    for (const held of this.actions.values()) if (held === action) return true;
+    return false;
+  }
+  pressAction(source: string, action: DriveAction): void {
+    if (this.actions.get(source) === action) return;
+    this.actions.set(source, action);
+    if (action === "brake") this.active = false;
+    if (action === "forward") this.start();
+  }
+  releaseAction(source: string): void { this.actions.delete(source); }
   mode: DriveMode = "manual";
   active = false;
   available = false;
@@ -26,10 +39,10 @@ export class DriveControls {
     if (Number.isFinite(value)) this.speedKph = Math.max(20, Math.min(55, Math.round(value / 5) * 5));
   }
   start(): void {
-    if (this.available && this.mode === "cruise" && !brakeKeys.some(key => this.pressed.has(key))) this.active = true;
+    if (this.available && this.mode === "cruise" && !brakeKeys.some(key => this.pressed.has(key)) && !this.actionHeld("brake")) this.active = true;
   }
   releaseKeys(): void { this.pressed.clear(); }
-  cancel(): void { this.active = false; this.releaseKeys(); }
+  cancel(): void { this.active = false; this.releaseKeys(); this.actions.clear(); }
   keyDown(code: string, repeat = false): boolean {
     if (!drivingKeys.has(code)) return false;
     // A held key repeating after blur/reset/UI focus must not count as a new press.
@@ -46,11 +59,11 @@ export class DriveControls {
   keyUp(code: string): void { this.pressed.delete(code); }
 
   input(): DriveInput {
-    const throttle = throttleKeys.some(key => this.pressed.has(key));
-    const brake = brakeKeys.some(key => this.pressed.has(key));
-    const shift = this.pressed.has("ShiftLeft") || this.pressed.has("ShiftRight");
-    const left = this.pressed.has("KeyA") || this.pressed.has("ArrowLeft");
-    const right = this.pressed.has("KeyD") || this.pressed.has("ArrowRight");
+    const throttle = throttleKeys.some(key => this.pressed.has(key)) || this.actionHeld("forward");
+    const brake = brakeKeys.some(key => this.pressed.has(key)) || this.actionHeld("brake");
+    const shift = this.pressed.has("ShiftLeft") || this.pressed.has("ShiftRight") || this.actionHeld("turbo");
+    const left = this.pressed.has("KeyA") || this.pressed.has("ArrowLeft") || this.actionHeld("left");
+    const right = this.pressed.has("KeyD") || this.pressed.has("ArrowRight") || this.actionHeld("right");
     const steer = Number(left) - Number(right);
     if (this.mode === "cruise") {
       const running = this.active && !brake;
@@ -64,4 +77,5 @@ export class DriveControls {
       turbo: throttle && shift && !brake };
   }
 }
+
 

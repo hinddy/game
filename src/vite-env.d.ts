@@ -21,13 +21,16 @@ interface Window {
       cruiseActive: boolean;
       cruiseSpeedKph: number;
       driveInput: { throttle: number; brake: number; steer: number; turbo?: boolean; holdBrake?: boolean; cruiseSpeedKph?: number };
-      cameraMode: "follow" | "inspect";
+      cameraMode: "follow";
+      orbitYaw: number;
+      cameraRadius: number;
       cameraPosition: { x: number; y: number; z: number };
       cameraTarget: { x: number; y: number; z: number };
       sunElevationDeg: number;
     } | null;
   };
 }
+
 
 
 

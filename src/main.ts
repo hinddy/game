@@ -7,6 +7,8 @@ import { GarageVehicle, type DriveInput } from "./vehicle";
 import { BonnevilleRuntime, SALT_PLAYABLE_HALF_SIZE } from "./bonneville";
 import { EngineAudio } from "./engine-audio";
 import { DriveControls } from "./drive-controls";
+import { DrivePad } from "./drive-pad";
+import { DroneCamera, DroneGestures } from "./drone-camera";
 import { BONNEVILLE_SUN_DIRECTION } from "./bonneville-light";
 
 type Runtime = {
@@ -49,8 +51,10 @@ const trackRenderOptions: TrackRenderOptions = lightSpeed
   ? { chunkSamples: 10, initialChunks: 1, streamIntervalMs: 150, showProps: false, castShadows: false }
   : { chunkSamples: 8, initialChunks: 1, streamIntervalMs: 90, showProps: true, castShadows: true };
 
+const touchDevice = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;
+const pixelRatioLimit = touchDevice ? 1.25 : 1.5;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !lightSpeed, powerPreference: "high-performance" });
-renderer.setPixelRatio(lightSpeed ? 1 : Math.min(window.devicePixelRatio, 1.5));
+renderer.setPixelRatio(lightSpeed ? 1 : Math.min(window.devicePixelRatio, pixelRatioLimit));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -117,8 +121,13 @@ const soundButton = requiredElement<HTMLButtonElement>("#sound-toggle");
 const volumeControl = requiredElement<HTMLInputElement>("#sound-volume");
 const boostStatus = requiredElement<HTMLElement>("#boost-status");
 const vehicleRestriction = requiredElement<HTMLElement>("#vehicle-restriction");
-const cameraControl = requiredElement<HTMLSelectElement>("#camera-mode");
+
 const driveControls = new DriveControls();
+const drivePad = new DrivePad(requiredElement<HTMLElement>("#drive-pad"), driveControls, () => {
+  devInput = null;
+  unlockAudio();
+});
+function cancelDriving(): void { driveControls.cancel(); drivePad.clear(); }
 const driveModeControl = requiredElement<HTMLSelectElement>("#drive-mode");
 const cruisePanel = requiredElement<HTMLElement>("#cruise-settings");
 const cruiseSpeedControl = requiredElement<HTMLInputElement>("#cruise-speed");
@@ -161,32 +170,40 @@ function currentInput(): DriveInput {
 
 function updateDriveUI(): void {
   driveModeControl.value = driveControls.mode;
+  const forwardLabel = touchDevice ? "▲" : "W";
+  const brakeLabel = touchDevice ? "▼" : "S";
+  const boostLabel = touchDevice ? "TURBO" : "Shift";
+  driveModeControl.querySelector<HTMLOptionElement>('option[value="manual"]')!.textContent = `Manual · hold ${forwardLabel}`;
+  driveModeControl.querySelector<HTMLOptionElement>('option[value="cruise"]')!.textContent = `Cruise · tap ${forwardLabel}`;
   throttleHelp.textContent = driveControls.mode === "cruise" ? "start cruise" : "drive";
   brakeHelp.textContent = driveControls.mode === "cruise" ? "stop cruise" : "brake / reverse";
   turboW.hidden = driveControls.mode === "cruise";
   driveModeControl.querySelector<HTMLOptionElement>('option[value="cruise"]')!.disabled = !driveControls.available;
   cruisePanel.hidden = driveControls.mode !== "cruise";
   cruiseSpeedValue.value = String(driveControls.speedKph) + " km/h";
-  cruiseButton.textContent = driveControls.active ? "Stop cruise · S" : "Start cruise · W";
+  cruiseButton.textContent = driveControls.active ? `Stop cruise · ${brakeLabel}` : `Start cruise · ${forwardLabel}`;
   driveStatus.textContent = driveControls.mode === "cruise"
-    ? driveControls.active ? "Cruise active · Shift boosts · S stops" : "Cruise stopped · press W to start"
-    : driveControls.available ? "Hold W to drive · Shift + W boosts" : "Manual throttle · cruise is available on P04";
+    ? driveControls.active ? `Cruise active · ${boostLabel} boosts · ${brakeLabel} stops` : `Cruise stopped · tap ${forwardLabel} to start`
+    : `Hold ${forwardLabel} to drive · ${brakeLabel} brakes / reverses`;
 }
 
 driveModeControl.addEventListener("change", () => {
+  drivePad.clear();
   driveControls.setMode(driveModeControl.value === "cruise" ? "cruise" : "manual");
   devInput = null;
   if (runtime) runtime.vehicle.boost = 0;
   updateDriveUI();
   driveModeControl.blur();
+  canvas.focus({ preventScroll: true });
 });
 cruiseSpeedControl.addEventListener("input", () => {
   driveControls.setSpeed(Number(cruiseSpeedControl.value));
   updateDriveUI();
 });
-cruiseSpeedControl.addEventListener("pointerup", () => cruiseSpeedControl.blur());
+cruiseSpeedControl.addEventListener("pointerup", () => canvas.focus({ preventScroll: true }));
+volumeControl.addEventListener("pointerup", () => canvas.focus({ preventScroll: true }));
 cruiseButton.addEventListener("click", () => {
-  if (driveControls.active) driveControls.cancel();
+  if (driveControls.active) cancelDriving();
   else driveControls.start();
   devInput = null;
   updateDriveUI();
@@ -208,6 +225,7 @@ function createRuntime(trackId: TrackId): Runtime {
     ? new BonnevilleRuntime(spec, world, scene, !lightSpeed)
     : new TrackRuntime(spec, world, scene, trackRenderOptions);
   const vehicle = new GarageVehicle(world, spec, track.spawn, scene, VEHICLES[activeVehicle]);
+  drivePad.setTurboAvailable(!!vehicle.spec.turbo);
 
   requiredElement<HTMLElement>("#vehicle-name").textContent = VEHICLES[activeVehicle].name;
   requiredElement<HTMLElement>("#vehicle-spec").textContent = `${VEHICLES[activeVehicle].massKg} kg · ${VEHICLES[activeVehicle].targetTopSpeedKph} km/h target`;
@@ -218,7 +236,7 @@ function createRuntime(trackId: TrackId): Runtime {
     button.disabled = !!spec.vehicleOnly && button.dataset.vehicle !== spec.vehicleOnly;
   });
   vehicleRestriction.textContent = spec.vehicleOnly ? "Bonneville · BuggY only" : "Switching starts a new session";
-  boostStatus.textContent = VEHICLES[activeVehicle].turbo ? "Shift + W · TURBO" : "Turbo unavailable";
+  boostStatus.textContent = VEHICLES[activeVehicle].turbo ? (touchDevice ? "▲ + TURBO · boost" : "Shift + W · TURBO") : "Turbo unavailable";
   surfaceElement.textContent = spec.surface;
   trackCodeElement.textContent = spec.code;
   speedElement.textContent = "0";
@@ -239,14 +257,15 @@ function createRuntime(trackId: TrackId): Runtime {
 
 function switchTrack(trackId: TrackId): void {
   if (runtime) disposeRuntime(runtime);
-  driveControls.cancel();
+  cancelDriving();
   devInput = null;
   resetRequested = false;
   activeTrack = trackId;
   driveControls.setAvailable(trackId === "bonneville");
   updateDriveUI();
   accumulator = 0;
-  setCameraMode("follow");
+  drone.recenter();
+  droneGestures.clear();
   engineAudio.update(0, 0, 0, false);
   const salt = trackId === "bonneville";
   document.body.classList.toggle("salt-world", salt);
@@ -276,11 +295,12 @@ function switchTrack(trackId: TrackId): void {
 function resetVehicle(message = "Vehicle returned to the last safe checkpoint"): void {
   if (!runtime) return;
   runtime.vehicle.reset(runtime.lastSafeSample);
-  droneNeedsSnap = true;
-  if (cameraMode === "follow") updateCamera(runtime, 0);
+  drone.recenter();
+  droneGestures.clear();
+  updateCamera(runtime, 0);
   runtime.outsideSeconds = 0;
   runtime.wrongWaySeconds = 0;
-  driveControls.cancel();
+  cancelDriving();
   devInput = null;
   engineAudio.update(0, 0, 0, false);
   showNotice(message);
@@ -326,197 +346,53 @@ function updateProgress(current: Runtime, dt: number): void {
 }
 
 const shadowOffset = new THREE.Vector3(-24, 38, -18);
-const droneOffset = new THREE.Vector3();
-const droneHeading = new THREE.Vector3(0, 0, 1);
-let droneNeedsSnap = true;
-const cameraTarget = new THREE.Vector3();
+const drone = new DroneCamera();
+const droneGestures = new DroneGestures(canvas, drone);
 const cameraForward = new THREE.Vector3();
 const cameraViewDirection = new THREE.Vector3();
 const vehiclePosition = new THREE.Vector3();
 
-const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2();
-const inspectionPivot = new THREE.Vector3();
-const inspectionCameraPosition = new THREE.Vector3();
-const inspectionOrbit = new THREE.Spherical(7.4, 1.08, 0);
-
-type CameraMode = "follow" | "inspect";
-
-let cameraMode: CameraMode = "follow";
-let followDistance = 6.6;
-let followHeight = 3.9;
-let activePointerId: number | null = null;
-let pointerStartX = 0;
-let pointerStartY = 0;
-let isOrbiting = false;
-
-function setPointerFromEvent(event: PointerEvent): void {
-  const bounds = canvas.getBoundingClientRect();
-  pointer.set(
-    ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
-    -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
-  );
-}
-
-function pickInspectionPoint(event: PointerEvent): THREE.Vector3 | null {
-  if (!runtime) return null;
-  setPointerFromEvent(event);
-  raycaster.setFromCamera(pointer, camera);
-  const trackHit = raycaster.intersectObject(runtime.track.group, true)[0];
-  const vehicleHit = raycaster.intersectObject(runtime.vehicle.visual, true)[0];
-  const hit = !trackHit ? vehicleHit : !vehicleHit ? trackHit
-    : trackHit.distance < vehicleHit.distance ? trackHit : vehicleHit;
-  return hit ? hit.point.clone() : null;
-}
-
-function updateInspectionPose(): void {
-  inspectionOrbit.radius = THREE.MathUtils.clamp(inspectionOrbit.radius, 2.25, 28);
-  inspectionOrbit.phi = THREE.MathUtils.clamp(inspectionOrbit.phi, 0.18, Math.PI - 0.18);
-  inspectionCameraPosition.setFromSpherical(inspectionOrbit).add(inspectionPivot);
-}
-
-function focusInspectionPoint(point: THREE.Vector3): void {
-  const offset = camera.position.clone().sub(point);
-  inspectionPivot.copy(point).add(new THREE.Vector3(0, 0.55, 0));
-  if (offset.lengthSq() < 1 || offset.length() > 26) offset.set(4.8, 3.2, -4.8);
-  inspectionOrbit.setFromVector3(offset);
-  updateInspectionPose();
-  cameraMode = "inspect";
-  cameraControl.value = "inspect";
-  canvas.classList.add("is-inspecting");
-}
-
-function setCameraMode(mode: CameraMode): void {
-  if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) canvas.releasePointerCapture(activePointerId);
-  activePointerId = null;
-  isOrbiting = false;
-  canvas.classList.remove("is-orbiting");
-  cameraMode = mode;
-  cameraControl.value = mode;
-  canvas.classList.toggle("is-inspecting", mode === "inspect");
-  if (mode === "inspect" && runtime) {
-    focusInspectionPoint(runtime.vehicle.position());
-  } else {
-    droneNeedsSnap = true;
-  }
-}
-
-cameraControl.addEventListener("change", () => {
-  setCameraMode(cameraControl.value === "inspect" ? "inspect" : "follow");
-  cameraControl.blur();
-  showNotice(cameraMode === "follow" ? "Drone follows the vehicle" : "Observation — click a point, right-drag to orbit; F returns to drone");
-});
-
 function updateCamera(current: Runtime, frameDt: number): void {
-  const cameraBlend = 1 - Math.exp(-frameDt * 5.8);
-  if (cameraMode === "inspect") {
-    updateInspectionPose();
-    camera.position.lerp(inspectionCameraPosition, cameraBlend);
-    cameraTarget.lerp(inspectionPivot, cameraBlend);
-    camera.lookAt(cameraTarget);
-    return;
-  }
-
-  const position = current.vehicle.position(vehiclePosition);
-  const forward = current.vehicle.forward(cameraForward);
-  // World-up keeps the drone level through banking and rollovers.
-  forward.y = 0;
-  if (forward.lengthSq() < 0.001) forward.copy(droneHeading);
-  forward.normalize();
-  if (droneNeedsSnap) droneHeading.copy(forward);
-  else droneHeading.lerp(forward, cameraBlend).normalize();
-  if (droneHeading.lengthSq() < 0.001) droneHeading.copy(forward);
-  droneOffset.copy(droneHeading).multiplyScalar(-followDistance);
-  droneOffset.y = followHeight;
-  // Follow translation exactly: turbo cannot leave the camera behind.
-  camera.position.copy(position).add(droneOffset);
-  cameraTarget.copy(position).addScaledVector(droneHeading, 1.5);
-  cameraTarget.y += 0.85;
-  camera.lookAt(cameraTarget);
-  droneNeedsSnap = false;
+  drone.update(camera, current.vehicle.position(vehiclePosition), current.vehicle.forward(cameraForward),
+    frameDt, current.vehicle.speedKph(), droneGestures.active);
 }
-canvas.addEventListener("contextmenu", (event) => event.preventDefault());
-canvas.addEventListener("pointerdown", (event) => {
-  if (cameraMode !== "inspect" || (event.button !== 0 && event.button !== 2)) return;
-  activePointerId = event.pointerId;
-  pointerStartX = event.clientX;
-  pointerStartY = event.clientY;
-  canvas.setPointerCapture(event.pointerId);
-
-  if (event.button === 2) {
-    const point = pickInspectionPoint(event);
-    if (!point) return;
-    focusInspectionPoint(point);
-    isOrbiting = true;
-    canvas.classList.add("is-orbiting");
-    showNotice("Orbit point locked — drag the right mouse button to look around");
-  }
+requiredElement<HTMLButtonElement>("#camera-reset").addEventListener("click", () => {
+  drone.recenter(); droneGestures.clear(); canvas.focus({ preventScroll: true });
 });
-
-canvas.addEventListener("pointermove", (event) => {
-  if (!isOrbiting || event.pointerId !== activePointerId) return;
-  const deltaX = event.clientX - pointerStartX;
-  const deltaY = event.clientY - pointerStartY;
-  pointerStartX = event.clientX;
-  pointerStartY = event.clientY;
-  inspectionOrbit.theta -= deltaX * 0.007;
-  inspectionOrbit.phi += deltaY * 0.007;
-  updateInspectionPose();
+requiredElement<HTMLButtonElement>("#vehicle-reset").addEventListener("click", () => {
+  resetRequested = true; canvas.focus({ preventScroll: true });
 });
-
-function stopPointerInteraction(event: PointerEvent): void {
-  if (event.pointerId !== activePointerId) return;
-  const wasOrbiting = isOrbiting;
-  isOrbiting = false;
-  activePointerId = null;
-  canvas.classList.remove("is-orbiting");
-  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-
-  const moved = Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY) > 6;
-  if (event.type !== "pointercancel" && cameraMode === "inspect" && !wasOrbiting && event.button === 0 && !moved) {
-    const point = pickInspectionPoint(event);
-    if (!point) return;
-    focusInspectionPoint(point);
-    showNotice("Inspection view moved — right-drag to orbit, F to follow vehicle");
-  }
-}
-
-canvas.addEventListener("pointerup", stopPointerInteraction);
-canvas.addEventListener("pointercancel", stopPointerInteraction);
-canvas.addEventListener("wheel", (event) => {
-  event.preventDefault();
-  if (cameraMode === "inspect") {
-    inspectionOrbit.radius += event.deltaY * 0.012;
-    updateInspectionPose();
-    return;
-  }
-  followDistance = THREE.MathUtils.clamp(followDistance + event.deltaY * 0.012, 3.3, 15);
-  followHeight = THREE.MathUtils.clamp(followDistance * 0.58, 2.2, 7.5);
-}, { passive: false });
-
 window.addEventListener("keydown", (event) => {
-  if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement) return;
-  if (event.target instanceof HTMLButtonElement && (event.code === "Space" || event.code === "Enter" || event.code.startsWith("Arrow"))) return;
+  const target = event.target;
+  // Preserve actual text entry and native arrow/space editing, but let WASD/R/F/Shift
+  // drive even when a select/range retains focus after a click (including Safari).
+  if (target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLTextAreaElement)) return;
+  if (target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(target.type)) return;
+  if ((target instanceof HTMLSelectElement || target instanceof HTMLInputElement)
+    && (event.code.startsWith("Arrow") || ["Space", "Enter", "Home", "End"].includes(event.code))) return;
+  if (target instanceof HTMLButtonElement && ["Space", "Enter"].includes(event.code)) return;
   unlockAudio();
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
   if (event.code === "KeyR" && !event.repeat) resetRequested = true;
   if (event.code === "KeyF" && !event.repeat) {
-    setCameraMode("follow");
-    showNotice("Drone follows the vehicle");
+    drone.recenter(); droneGestures.clear();
+    showNotice("Drone centred behind the vehicle");
   }
-  // Physical input takes precedence over stale development automation.
-  if (driveControls.keyDown(event.code, event.repeat)) devInput = null;
+  if (driveControls.keyDown(event.code, event.repeat)) {
+    event.preventDefault();
+    devInput = null;
+  }
 });
-
 window.addEventListener("keyup", (event) => driveControls.keyUp(event.code));
 document.addEventListener("focusin", (event) => {
   if (event.target instanceof HTMLSelectElement || event.target instanceof HTMLInputElement || event.target instanceof HTMLButtonElement) {
     driveControls.releaseKeys();
     devInput = null;
   }
-});function pauseControls(): void {
-  driveControls.cancel(); devInput = null;
+});
+function pauseControls(): void {
+  cancelDriving(); devInput = null;
   if (runtime) runtime.vehicle.boost = 0;
+  droneGestures.clear();
   engineAudio.suspend();
 }
 window.addEventListener("blur", pauseControls);
@@ -525,7 +401,7 @@ window.addEventListener("pagehide", () => engineAudio.dispose());
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(lightSpeed ? 1 : Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(lightSpeed ? 1 : Math.min(window.devicePixelRatio, pixelRatioLimit));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
 });
 
@@ -533,6 +409,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-track]").forEach((button) =>
   button.addEventListener("click", () => {
     const trackId = button.dataset.track as TrackId | undefined;
     if (trackId && trackId !== activeTrack) switchTrack(trackId);
+    canvas.focus({ preventScroll: true });
   });
 });
 
@@ -541,12 +418,14 @@ document.querySelectorAll<HTMLButtonElement>("[data-vehicle]").forEach(button =>
     const id = button.dataset.vehicle as VehicleId;
     if (id === activeVehicle || !Object.hasOwn(VEHICLES, id) || vehicleForTrack(activeTrack, id) !== id) return;
     activeVehicle = id;
-    driveControls.cancel();
+    cancelDriving();
     devInput = null;
     resetRequested = false;
     accumulator = 0;
-    setCameraMode("follow");
+    drone.recenter();
+  droneGestures.clear();
     switchTrack(activeTrack);
+    canvas.focus({ preventScroll: true });
     showNotice(`${VEHICLES[id].name} ready — new session`);
   });
 });
@@ -584,7 +463,7 @@ function frame(now: number): void {
   runtime.vehicle.updateEffects(frameDt, window.innerHeight * renderer.getPixelRatio());
   engineAudio.update(runtime.vehicle.speedKph(), runtime.vehicle.engineLoad, runtime.vehicle.boost, activeVehicle === "buggy");
   updateDriveUI();
-  boostStatus.textContent = runtime.vehicle.boost > 0.05 ? "TURBO ACTIVE" : activeVehicle === "buggy" ? driveControls.mode === "cruise" ? "Shift · TURBO while cruising" : "Shift + W · TURBO" : "Turbo unavailable";
+  boostStatus.textContent = runtime.vehicle.boost > 0.05 ? "TURBO ACTIVE" : activeVehicle === "buggy" ? driveControls.mode === "cruise" ? "Shift · TURBO while cruising" : (touchDevice ? "▲ + TURBO · boost" : "Shift + W · TURBO") : "Turbo unavailable";
   boostStatus.classList.toggle("is-boosting", runtime.vehicle.boost > 0.05);
   updateCamera(runtime, frameDt);
   runtime.track.stream(now, runtime.vehicle.position(vehiclePosition), camera.getWorldDirection(cameraViewDirection));
@@ -638,9 +517,9 @@ async function start(): Promise<void> {
           cruiseActive: driveControls.active,
           cruiseSpeedKph: driveControls.speedKph,
           driveInput: currentInput(),
-          cameraMode,
+          cameraMode: "follow", orbitYaw: drone.yaw, cameraRadius: drone.radius,
           cameraPosition: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-          cameraTarget: { x: cameraTarget.x, y: cameraTarget.y, z: cameraTarget.z },
+          cameraTarget: { x: drone.target.x, y: drone.target.y, z: drone.target.z },
           sunElevationDeg: THREE.MathUtils.radToDeg(Math.atan2(shadowOffset.y, Math.hypot(shadowOffset.x, shadowOffset.z))),
         };
       },
@@ -667,6 +546,7 @@ start().catch((error: unknown) => {
   details.textContent = message;
   loadingElement.append(title, details);
 });
+
 
 
 

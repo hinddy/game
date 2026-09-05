@@ -168,18 +168,10 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .salt-world .eyebrow { color: #a74408; }
 .salt-world .controls { color: #324655; }
 #game { cursor: default; }
-#game.is-inspecting { cursor: crosshair; }
 #game.is-orbiting { cursor: grabbing; }
 .status-cluster { flex-wrap: wrap; justify-content: flex-end; max-width: 380px; }
-.camera-control { display: flex; align-items: center; gap: 7px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); pointer-events: auto; }
-.camera-control span { color: var(--muted); font-size: 11px; }
-.camera-control select { border: 0; padding: 3px; border-radius: 4px; background: #111e2b; color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
-.camera-control select:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
 @media (max-width: 720px) {
   .status-cluster { max-width: 180px; gap: 4px; }
-  .camera-control { order: 1; width: 100%; justify-content: space-between; padding: 4px 6px; }
-  .camera-control span { display: none; }
-  .camera-control select { width: 100%; }
 }
 @media (max-width: 720px) { .telemetry { top: 110px; } }
 .drive-mode-label { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 10px; color: var(--muted); padding-top: 7px; border-top: 1px solid var(--line); }
@@ -200,4 +192,60 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
   .track-picker { width: 170px; right: 14px; left: auto; bottom: 14px; }
   .track-button { grid-template-columns: 24px 1fr; gap: 3px; padding: 8px; }
   .track-button small { display: none; }
+}
+/* One input layout for desktop and touch. The driving pad owns the lower right. */
+html, body, #app { overscroll-behavior: none; }
+#game { touch-action: none; cursor: grab; }
+#game:focus-visible { outline: none; }
+.controls { right: 276px; max-width: min(600px, calc(100vw - 630px)); }
+.track-picker { left: max(16px, env(safe-area-inset-left)); right: auto; bottom: max(58px, env(safe-area-inset-bottom)); width: 310px; }
+.drive-dock { position: fixed; z-index: 3; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); width: 218px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.drive-tools { display: flex; gap: 8px; margin: 0 0 9px; }
+.drive-tools button { flex: 1; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; touch-action: manipulation; }
+.drive-pad { width: 218px; height: 218px; border: 1px solid #8fa5bd66; border-radius: 50%; padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 5px; background: radial-gradient(circle at 45% 35%, #23394ce8, #07111ee8); box-shadow: 0 10px 35px #0003, inset 0 1px 0 #ffffff20; touch-action: none; }
+.drive-pad button { min-width: 44px; min-height: 44px; border: 1px solid #b6c4d44d; border-radius: 16px; color: #eff5ff; background: linear-gradient(#30465b, #182b3d); font: inherit; font-size: 20px; cursor: pointer; touch-action: none; padding: 0; box-shadow: inset 0 1px 0 #fff2, 0 3px 5px #0003; }
+.pad-up { grid-column: 2; grid-row: 1; }
+.pad-left { grid-column: 1; grid-row: 2; }
+.drive-pad .pad-turbo { grid-column: 2; grid-row: 2; border-radius: 50%; font-size: 10px; font-weight: 900; letter-spacing: .03em; color: #ffd2aa; border-color: #ff8b3c99; background: radial-gradient(circle at 40% 30%, #9d4a1b, #4b2415); }
+.pad-right { grid-column: 3; grid-row: 2; }
+.pad-down { grid-column: 2; grid-row: 3; }
+.drive-pad button.is-held { background: #bf5c1b; border-color: #ffd0a0; box-shadow: inset 0 2px 7px #0005, 0 0 12px #ff730044; }
+.drive-pad button:disabled { opacity: .38; cursor: default; }
+.drive-pad button:focus-visible, .drive-tools button:focus-visible { outline: 2px solid #ffb36b; outline-offset: 3px; }
+.touch-hint { display: none; margin: 7px 0 0; font-size: 10px; text-align: center; color: var(--muted); }
+@media (max-height: 850px), (max-width: 1100px) {
+  .track-picker { width: min(460px, calc(100vw - 280px)); grid-template-columns: 1fr 1fr; bottom: max(14px, env(safe-area-inset-bottom)); gap: 5px; }
+  .track-button { min-height: 48px; padding: 8px; grid-template-columns: 27px 1fr; }
+  .track-button small { display: none; }
+  .vehicle-picker { top: 82px; left: 16px; max-height: calc(100dvh - 235px); overflow-y: auto; overscroll-behavior: contain; }
+  .controls { display: none; }
+  .telemetry { top: 82px; right: 18px; width: 164px; }
+}
+@media (pointer: coarse) {
+  .vehicle-options button, .drive-mode-label select, .sound-controls button, #cruise-toggle { min-height: 44px; }
+  .sound-controls input, #cruise-speed { height: 28px; }
+  .vehicle-picker { width: 230px; max-height: calc(100dvh - 245px); overflow-y: auto; }
+  .touch-hint { display: block; color: #d2deeb; background: var(--panel); padding: 5px; border-radius: 5px; }
+  .controls { display: none; }
+}
+@media (max-width: 640px) {
+  .topbar { gap: 10px; }
+  h1 { font-size: 18px; max-width: 220px; }
+  .vehicle-picker { width: 180px; left: 10px; padding: 9px; max-height: calc(100dvh - 340px); }
+  .telemetry { width: 128px; right: 10px; padding: 10px; }
+  .telemetry .speed strong { font-size: 30px; }
+  .telemetry dl { display: none; }
+  .telemetry .speed { margin: 0; }
+  .track-picker { width: calc(100vw - 235px); min-width: 140px; grid-template-columns: 1fr; left: 10px; }
+  .track-button { grid-template-columns: 23px 1fr; gap: 4px; }
+  .track-button strong { font-size: 10px; }
+  .drive-dock { width: 202px; right: 10px; }
+  .drive-pad { width: 202px; height: 202px; padding: 12px; gap: 4px; }
+}
+@media (max-height: 560px) {
+  .telemetry { display: none; }
+  .drive-dock { width: 190px; bottom: 8px; }
+  .drive-pad { width: 190px; height: 190px; padding: 9px; gap: 3px; }
+  .drive-tools { margin-bottom: 5px; }
+  .touch-hint { display: none; }
 }

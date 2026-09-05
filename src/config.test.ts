@@ -198,3 +198,59 @@ describe("manual input and cruise state", () => {
     expect(cruiseForces(-2, 40, BUGGY_SPEC).engine).toBe(0);
   });
 });
+
+import { DroneCamera } from "./drone-camera";
+
+test("pad fingers compose with keyboard and release independently", () => {
+  const controls = new DriveControls();
+  controls.pressAction("finger-1", "forward");
+  controls.pressAction("finger-2", "left");
+  controls.pressAction("finger-3", "turbo");
+  expect(controls.input()).toMatchObject({ throttle: 1, steer: 1, turbo: true });
+  controls.releaseAction("finger-2");
+  expect(controls.input()).toMatchObject({ throttle: 1, steer: 0, turbo: true });
+  controls.keyDown("KeyW");
+  controls.releaseAction("finger-1");
+  expect(controls.input().throttle).toBe(1);
+  controls.keyUp("KeyW");
+  expect(controls.input().turbo).toBe(false);
+  controls.pressAction("finger-4", "brake");
+  controls.pressAction("finger-5", "forward");
+  expect(controls.input()).toMatchObject({ throttle: 0, brake: 1, turbo: false });
+  controls.cancel();
+  expect(controls.input()).toMatchObject({ throttle: 0, brake: 0, steer: 0, turbo: false });
+});
+
+test("touch cruise starts once and braking cancels until a new press", () => {
+  const controls = new DriveControls();
+  controls.setAvailable(true); controls.setMode("cruise");
+  controls.pressAction("thumb", "forward");
+  expect(controls.active).toBe(true);
+  controls.pressAction("brake", "brake");
+  controls.releaseAction("brake");
+  expect(controls.active).toBe(false);
+  controls.pressAction("thumb", "forward");
+  expect(controls.active).toBe(false);
+  controls.releaseAction("thumb");
+  controls.pressAction("thumb", "forward");
+  expect(controls.active).toBe(true);
+});
+
+test("360 drone follows translation, stays level and returns behind while driving", () => {
+  const drone = new DroneCamera(), camera = new THREE.PerspectiveCamera();
+  const p = new THREE.Vector3(0, 0.4, 0), forward = new THREE.Vector3(0, 0, 1);
+  drone.orbit(180, -25);
+  drone.update(camera, p, forward, 1 / 60, 40, true);
+  const offset = camera.position.clone().sub(p);
+  p.set(1000, 0.4, 2000);
+  drone.update(camera, p, forward, 1 / 60, 40, true);
+  expect(camera.position.clone().sub(p).distanceTo(offset)).toBeLessThan(0.000001);
+  expect(camera.up.equals(new THREE.Vector3(0, 1, 0))).toBe(true);
+  for (let i = 0; i < 420; i++) drone.update(camera, p, forward, 1 / 60, 40);
+  expect(Math.abs(drone.yaw)).toBeLessThan(0.001);
+  expect(camera.position.z).toBeLessThan(p.z);
+  drone.zoom(100);
+  expect(drone.radius).toBe(20);
+  drone.zoom(0.001);
+  expect(drone.radius).toBe(4);
+});
