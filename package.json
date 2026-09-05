@@ -1,0 +1,24 @@
+{
+  "name": "hinddy-game-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "tsc --noEmit",
+    "test": "bun test ./src/config.test.ts",
+    "verify": "bun run check && bun run test && bun run build"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d": "^0.20.0",
+    "@types/three": "^0.185.4",
+    "three": "^0.185.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0"
+  }
+}

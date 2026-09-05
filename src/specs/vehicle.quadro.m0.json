@@ -1,0 +1,36 @@
+{
+  "schema": "hinddy.vehicle.v1",
+  "vehicle": {
+    "id": "quadro.m0",
+    "massKg": 260,
+    "chassis": {
+      "width": 1.12,
+      "height": 0.52,
+      "length": 1.72
+    },
+    "centerOfMass": {
+      "x": 0,
+      "y": -0.28,
+      "z": 0.05
+    },
+    "wheelbaseM": 1.25,
+    "trackWidthM": 1.24,
+    "wheelRadiusM": 0.39,
+    "suspensionRestM": 0.18,
+    "suspensionTravelM": 0.12,
+    "suspensionStiffness": 24,
+    "suspensionCompression": 4.2,
+    "suspensionRelaxation": 2.3,
+    "maxSteerRad": 0.55,
+    "engineForce": 620,
+    "brakeForce": 16,
+    "reverseForce": 310,
+    "targetTopSpeedKph": 40,
+    "name": "Quadro",
+    "inertia": {
+      "x": 52,
+      "y": 78,
+      "z": 64
+    }
+  }
+}

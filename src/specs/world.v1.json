@@ -1,0 +1,19 @@
+{
+  "schema": "hinddy.world.v1",
+  "units": "m-kg-s",
+  "axes": {
+    "up": "+Y",
+    "forward": "+Z"
+  },
+  "physics": {
+    "gravity": { "x": 0, "y": -9.81, "z": 0 },
+    "fixedStep": 0.016666666666666666,
+    "maxCatchUpSteps": 4,
+    "killY": -4
+  },
+  "boundaries": {
+    "outsideResetSeconds": 0.8,
+    "wrongWayNoticeSeconds": 3.5,
+    "safetyMarginM": 4.4
+  }
+}

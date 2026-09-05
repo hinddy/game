@@ -1,0 +1,41 @@
+{
+  "schema": "hinddy.vehicle.v1",
+  "vehicle": {
+    "id": "buggy.m0",
+    "massKg": 340,
+    "chassis": {
+      "length": 1.92,
+      "height": 0.62,
+      "width": 1.02
+    },
+    "centerOfMass": {
+      "x": 0,
+      "y": -0.32,
+      "z": -0.08
+    },
+    "wheelbaseM": 1.65,
+    "trackWidthM": 1.48,
+    "wheelRadiusM": 0.36,
+    "suspensionRestM": 0.22,
+    "suspensionTravelM": 0.16,
+    "suspensionStiffness": 30,
+    "suspensionCompression": 4.8,
+    "suspensionRelaxation": 2.8,
+    "maxSteerRad": 0.48,
+    "engineForce": 1050,
+    "brakeForce": 24,
+    "reverseForce": 390,
+    "targetTopSpeedKph": 58,
+    "name": "BuggY",
+    "inertia": {
+      "x": 95,
+      "y": 132,
+      "z": 105
+    },
+    "turbo": {
+      "forceMultiplier": 1.65,
+      "responseSeconds": 0.25,
+      "topSpeedKph": 90
+    }
+  }
+}
