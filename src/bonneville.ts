@@ -9,6 +9,26 @@ import type { WorldStreamer } from "./worlds/streamer";
 // Gameplay stays near the origin; distant scenery is visual only.
 export const SALT_PLAYABLE_HALF_SIZE = 12000;
 const SALT_VISUAL_SIZE = 120000;
+const SALT_TILE_SIZE = 9;
+const SALT_DETAIL_SIZE = 288;
+
+/** Four coplanar quads around the detail patch: no overlapping ground/depth fight. */
+function saltHorizonGeometry(): THREE.BufferGeometry {
+  const inner = SALT_DETAIL_SIZE / 2, outer = SALT_VISUAL_SIZE / 2;
+  const positions: number[] = [], indices: number[] = [];
+  for (const [x0, y0, x1, y1] of [
+    [-outer, inner, outer, outer], [-outer, -outer, outer, -inner],
+    [-outer, -inner, -inner, inner], [inner, -inner, outer, inner],
+  ]) {
+    const base = positions.length / 3;
+    positions.push(x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y1, 0);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices); geometry.computeVertexNormals();
+  return geometry;
+}
 
 function hash(x: number, y: number): number {
   const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
@@ -49,7 +69,7 @@ function saltTexture(): { texture: THREE.CanvasTexture; average: THREE.Color } {
   context.putImageData(data, 0, 0);
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(SALT_VISUAL_SIZE / 9, SALT_VISUAL_SIZE / 9);
+  texture.repeat.set(SALT_DETAIL_SIZE / SALT_TILE_SIZE, SALT_DETAIL_SIZE / SALT_TILE_SIZE);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
@@ -67,6 +87,7 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
   readonly checkpoints: Checkpoint[];
   get streamState() { return this.streamer?.state ?? { ready: 0, total: 1 }; }
   private readonly texture: THREE.CanvasTexture;
+  private readonly saltSurface = new THREE.Group();
   streamer: WorldStreamer | null = null;
   private disposed = false;
   private viewRadius = 8;
@@ -109,25 +130,40 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
     });
     material.onBeforeCompile = shader => {
       shader.uniforms.uSaltAverage = { value: salt.average };
+      shader.vertexShader = shader.vertexShader.replace('#include <common>',
+        '#include <common>\nvarying vec2 vSaltLocal;').replace('#include <uv_vertex>',
+        '#include <uv_vertex>\nvSaltLocal = position.xy;');
       shader.fragmentShader = shader.fragmentShader.replace('#include <common>',
-        '#include <common>\nuniform vec3 uSaltAverage;');
+        '#include <common>\nuniform vec3 uSaltAverage;\nvarying vec2 vSaltLocal;');
       shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
         // Fade unresolved detail by its actual pixel footprint, not camera distance.
         // Keep UVs unwrapped: fract() would introduce false derivatives at tile seams.
         vec2 saltDx = dFdx(vMapUv) * 512.0;
         vec2 saltDy = dFdy(vMapUv) * 512.0;
         float saltFootprint = max(length(saltDx), length(saltDy));
-        float saltDetail = 1.0 - smoothstep(4.0, 24.0, saltFootprint);
+        float saltEdge = max(abs(vSaltLocal.x), abs(vSaltLocal.y));
+        float saltDetail = (1.0 - smoothstep(4.0, 24.0, saltFootprint))
+          * (1.0 - smoothstep(72.0, 126.0, saltEdge));
         vec4 saltSample = texture2D(map, vMapUv);
         diffuseColor *= vec4(mix(uSaltAverage, saltSample.rgb, saltDetail), saltSample.a);
       `);
     };
-    material.customProgramCacheKey = () => 'salt-footprint-filter-v1';
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(SALT_VISUAL_SIZE, SALT_VISUAL_SIZE), material);
+    material.customProgramCacheKey = () => 'salt-local-detail-v2';
+    // Large triangles + UVs around 6,666 lost sub-texel precision near the car.
+    // Keep detailed vertices/UVs local; the distant ring needs no texture at all.
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(SALT_DETAIL_SIZE, SALT_DETAIL_SIZE), material);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = shadows;
     ground.name = "dry-salt";
-    this.group.add(ground);
+    const horizon = new THREE.Mesh(saltHorizonGeometry(), new THREE.MeshStandardMaterial({
+      color: material.color.clone().multiply(salt.average), roughness: material.roughness, metalness: 0,
+    }));
+    horizon.rotation.x = ground.rotation.x;
+    horizon.receiveShadow = shadows;
+    horizon.name = 'dry-salt-horizon';
+    this.saltSurface.add(ground, horizon);
+    this.group.add(this.saltSurface);
+    this.positionSalt(this.spawn.position);
     const sky = new THREE.Mesh(new THREE.SphereGeometry(60000, 24, 12),
       new THREE.ShaderMaterial({
         side: THREE.BackSide, depthWrite: false,
@@ -230,7 +266,15 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
     return group;
   }
 
-  stream(now: number, focus: THREE.Vector3, _direction: THREE.Vector3): void { this.streamer?.tick(now, focus, this.viewRadius); }
+  private positionSalt(focus: THREE.Vector3): void {
+    // Whole texture periods preserve the world-anchored pattern across recentering.
+    this.saltSurface.position.set(Math.round(focus.x / SALT_TILE_SIZE) * SALT_TILE_SIZE,
+      0, Math.round(focus.z / SALT_TILE_SIZE) * SALT_TILE_SIZE);
+  }
+  stream(now: number, focus: THREE.Vector3, _direction: THREE.Vector3): void {
+    this.positionSalt(focus);
+    this.streamer?.tick(now, focus, this.viewRadius);
+  }
   nearestSample(position: THREE.Vector3): { index: number; sample: TrackSample; distance: number } {
     let nearest = 0, distanceSq = Infinity;
     for (let i = 0; i < this.samples.length; i++) {

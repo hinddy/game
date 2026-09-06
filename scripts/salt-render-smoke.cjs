@@ -31,6 +31,8 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:5173';
         undefined, renderer.capabilities.getMaxAnisotropy());
       const ground = runtime.group.getObjectByName('dry-salt');
       const material = ground.material;
+      const geometry = ground.geometry;
+      const baselineGeometry = generator ? new THREE.PlaneGeometry(120000, 120000) : null;
       scene.remove(runtime.group); scene.add(ground, new THREE.AmbientLight(0xffffff, 3));
       const oldTexture = generator ? new Function('THREE', generator + '\nreturn saltTexture();')(THREE) : null;
       const oldMaterial = oldTexture ? new THREE.MeshStandardMaterial({
@@ -42,6 +44,7 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:5173';
       const previous = new Uint8Array(pixels.length);
       const measure = (surface, height, distance, movement) => {
         ground.material = surface;
+        ground.geometry = surface === oldMaterial ? baselineGeometry : geometry;
         let difference = 0;
         for (let frame = 0; frame < 16; frame++) {
           const x = frame * movement;
@@ -66,7 +69,8 @@ const base = process.env.GAME_URL || 'http://127.0.0.1:5173';
         }
       }
       const textureSize = [material.map.image.width, material.map.image.height];
-      ground.material = material; runtime.group.add(ground); runtime.dispose(scene);
+      ground.material = material; ground.geometry = geometry;
+      runtime.group.add(ground); runtime.dispose(scene); baselineGeometry?.dispose();
       oldTexture?.dispose(); oldMaterial?.dispose(); target.dispose(); renderer.dispose();
       return { samples, textureSize };
     }, generator);

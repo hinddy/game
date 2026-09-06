@@ -249,6 +249,17 @@ landing page to the east. The original course, morning, ground texture and dista
 mountains remain. The initial spawn moved into the central corridor, facing +Z.
 The 24 km playable square and 120 km visual ground remain unchanged.
 
+Salt rendering uses a 288 m detail patch with UVs limited to 0–32, recentered in
+whole 9 m texture periods so the pattern stays anchored to the ground. An untextured
+four-quad ring fills the horizon without overlapping the patch. Detail fades to
+the same average salt colour before their shared edge. This replaces the former
+120 km textured triangles, whose large interpolated UVs caused visible precision
+jitter on desktop. It adds one draw call and eight triangles, reuses the existing
+512 px texture, and does not change the physics floor or add per-frame allocations.
+`scripts/salt-precision-smoke.cjs` isolates this regression from shadows/physics:
+whole-period translations through ±9 km must preserve the image, and recentering
+must not shift the nearby pattern. Its default baseline is revision `841d843`.
+
 Open `?track=bonneville`, `?track=bonneville&zone=material` or
 `?track=bonneville&zone=shadcn`. The side links start on clear salt at the relevant
 entrance. Drive sideways to explore; wheel/pinch can pull the drone back to 1200 m,
