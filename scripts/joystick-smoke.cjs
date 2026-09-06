@@ -47,8 +47,8 @@ const output = process.env.SCREENSHOT_DIR;
     s = await snapshot(); assert.equal(s.driveInput.turbo, true); assert.ok(s.boost > .2);
     // A third finger can orbit the scene while both driving thumbs are held.
     await down(3, 500, 320); points.set(3, { x: 590, y: 360 }); await touch('touchMove'); await settle();
-    s = await snapshot(); assert.ok(Math.abs(s.orbitYaw) > .3); assert.equal(s.driveInput.throttle, 1);
-    await up(3); await up(2); s = await snapshot(); assert.equal(s.driveInput.throttle, 1); assert.equal(s.driveInput.turbo, false);
+    s = await snapshot(); assert.ok(Math.abs(s.orbitYaw) > .3); assert.ok(s.driveInput.throttle > .99);
+    await up(3); await up(2); s = await snapshot(); assert.ok(s.driveInput.throttle > .99); assert.equal(s.driveInput.turbo, false);
     const speedBeforeCoast = s.speedKph;
     await stick(.7, 0); await settle(250); s = await snapshot();
     assert.equal(s.driveInput.throttle, 0); assert.equal(s.driveInput.brake, 0);

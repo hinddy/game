@@ -40,8 +40,10 @@ Open the local URL printed by Vite. Controls:
 - Mouse wheel: move the follow camera closer or farther away
 - Right mouse drag: orbit 360° around the moving vehicle
 - `F` / **Centre view**: centre the drone behind the vehicle
-- Circular pad: hold ▲ for throttle, ◀/▶ to steer, ▼ to brake/reverse
-- Centre **TURBO**: hold with throttle on BuggY, or during active Cruise
+- Analog ball stick on the right: tilt up for gas, diagonally for gas and steering,
+  sideways to steer while coasting, down to brake and then reverse while held
+- Separate **NITRO** button on the left: hold with forward throttle on BuggY,
+  or during active Cruise (the same engine boost as keyboard Shift)
 - Tablet: drag the scene with one finger to orbit; pinch with two to zoom
 - **Reset**: return to the last safe checkpoint without a keyboard
 
@@ -82,7 +84,7 @@ performance claims; drag and track conditions affect achievable speeds.
 
 Rigid model parts are baked by material; the four animated wheels share geometry.
 Measured model budgets (excluding the shadow pass): Quadro 13,152 triangles /
-17 mesh draws; BuggY 12,820 triangles / 23 mesh draws. Tests enforce finite
+18 mesh draws; BuggY 12,820 triangles / 24 mesh draws. Tests enforce finite
 geometry, tyre radius, shared wheel buffers and an 18k triangle / 24 draw ceiling.
 
 ## Maintenance notes from this refinement
@@ -184,10 +186,11 @@ actual drive load, including partial-throttle cruise.
 
 ## Unified input and tablet verification
 
-The circular pad uses native Pointer Events and pointer capture, with an independent
-input source for each finger. Throttle, steering, turbo and camera gestures can be
-combined. Pointer cancellation, reset, switching, blur and hidden tabs clear held
-input. The pad also supports keyboard focus and Space/Enter. Tablet controls have
+The analog stick uses native Pointer Events and captures one thumb; nitro uses
+independent pointers on the left. Throttle, steering, nitro and camera gestures
+can be combined. Pointer cancellation, reset, switching, blur and hidden tabs
+clear held input. Keyboard controls remain available; Space/Enter holds nitro
+when its button is focused. Tablet controls have
 at least 44px targets, respect safe areas, and use a 1.25 pixel-ratio cap to limit
 rendering cost. No new dependencies were added.
 
@@ -198,7 +201,7 @@ while preserving their native arrow-key editing and actual text entry. Pointer
 selection of settings returns focus to the canvas. The updated Vercel deployment
 was checked again: Quadro now accelerates with the volume slider focused.
 
-Validation: 17 unit tests, TypeScript and production build passed. Browser checks
+Validation of the previous button pad: 17 unit tests, TypeScript and production build passed. Browser checks
 on the local production build covered all seven eligible car/ground combinations:
 keyboard launch with the volume slider focused, braking, reset and pad launch.
 Touch emulation covered all four grounds, independent finger release, concurrent
@@ -206,3 +209,33 @@ throttle/steering/turbo, orbit while driving, pinch and touch cancellation, with
 no JavaScript errors. Landscape (1024×768) and portrait (768×1024) layouts were
 checked. These are Chromium touch-emulation results, not a physical iPad/Safari
 performance certification.
+
+## Analog ball stick
+
+The right-hand stick has circular travel, a 12% neutral zone on each axis and a
+progressive response. Vertical displacement requests proportional gas or brake;
+horizontal displacement requests proportional steering. Diagonal input combines
+both. Pure sideways input leaves propulsion off and preserves momentum, with
+normal drag gradually reducing speed. In Manual, holding down brakes forward
+travel before engaging reverse; in optional Cruise it cancels cruise and holds
+the brakes, as before. The separate left-hand NITRO button uses BuggY's existing
+boost tuning and cannot accelerate a stationary car without forward throttle.
+
+The shaded CSS ball rolls up to 90 degrees per axis and uses a damped spring for
+visual return. Releasing the stick clears physical input immediately; visual
+spring overshoot never requests acceleration or reverse. No extra WebGL context,
+physics bodies, textures or packages are needed for the control itself.
+
+BuggY's wheel and Quadro's tiller are separate animated model parts, driven by
+the same smoothed steering angle as the front wheels. Steering authority still
+reduces with speed. Triangle counts are unchanged; each model adds one mesh draw.
+
+Verification: 20 unit tests and the production build pass. The optional
+`scripts/joystick-smoke.cjs` uses an existing Playwright installation (set
+`PLAYWRIGHT_MODULE_PATH`) against `GAME_URL` (default local dev on port 5173).
+Set `PRODUCTION_URL` to also check a production preview. The browser run covered
+proportional and diagonal input, coasting turns, brake-to-reverse, two-hand nitro,
+simultaneous camera orbit, touch cancellation, spring return and steering model
+animation across all seven eligible car/ground combinations. All four grounds
+also passed touch launch in the local production build, with no JavaScript
+errors. Tablet landscape and portrait layouts were inspected in touch emulation.
