@@ -232,7 +232,8 @@ function createRuntime(trackId: TrackId): Runtime {
   world.timestep = WORLD_PHYSICS.fixedStep;
   const track = trackId === "bonneville"
     ? new BonnevilleRuntime(spec, world, scene, !lightSpeed,
-      devParams.get("zone") === "material" ? "material" : devParams.get("zone") === "shadcn" ? "shadcn" : undefined)
+      devParams.get("zone") === "material" ? "material" : devParams.get("zone") === "shadcn" ? "shadcn" : undefined,
+      renderer.capabilities.getMaxAnisotropy())
     : new TrackRuntime(spec, world, scene, trackRenderOptions);
   if (track instanceof BonnevilleRuntime) void track.attachWorlds(world, scene, themeBridge, renderer, camera, !lightSpeed)
     .catch(() => { if (runtime?.track === track) showNotice("Garage worlds unavailable · salt remains drivable"); });

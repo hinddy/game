@@ -15,13 +15,14 @@ function hash(x: number, y: number): number {
   return n - Math.floor(n);
 }
 
-/** Small tileable cellular texture generated once; hardware mipmaps remove distant noise. */
-function saltTexture(): THREE.CanvasTexture {
+/** Band-limited salt detail: no independent one-texel noise to sparkle in motion. */
+function saltTexture(): { texture: THREE.CanvasTexture; average: THREE.Color } {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 512;
   const context = canvas.getContext("2d")!;
   const data = context.createImageData(512, 512);
   const cells = 7;
+  const sum = [0, 0, 0];
   const wrap = (n: number) => (n % cells + cells) % cells;
   for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
     const u = x / 512 * cells, v = y / 512 * cells;
@@ -34,21 +35,28 @@ function saltTexture(): THREE.CanvasTexture {
       const d = (px - u) ** 2 + (py - v) ** 2;
       if (d < first) { second = first; first = d; } else if (d < second) second = d;
     }
-    const crack = 1 - THREE.MathUtils.smoothstep(second - first, 0.005, 0.045);
-    const value = 239 - crack * 23 - hash(x, y) * 6;
+    const crack = 1 - THREE.MathUtils.smoothstep(second - first, 0.012, 0.085);
+    // Smooth, periodic grain survives minification without random bright pixels.
+    const grain = Math.sin(x * Math.PI / 16) * Math.sin(y * Math.PI / 16);
+    const value = 236 - crack * 16 + grain * 0.8;
     const index = (y * 512 + x) * 4;
     data.data[index] = value;
     data.data[index + 1] = value - 2;
     data.data[index + 2] = value - 7;
     data.data[index + 3] = 255;
+    for (let channel = 0; channel < 3; channel++) sum[channel] += data.data[index + channel];
   }
   context.putImageData(data, 0, 0);
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(SALT_VISUAL_SIZE / 9, SALT_VISUAL_SIZE / 9);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  return texture;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  const average = new THREE.Color().setRGB(
+    sum[0] / (512 * 512 * 255), sum[1] / (512 * 512 * 255), sum[2] / (512 * 512 * 255), THREE.SRGBColorSpace);
+  return { texture, average };
 }
 
 export class BonnevilleRuntime implements Pick<TrackRuntime,
@@ -63,7 +71,7 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
   private disposed = false;
   private viewRadius = 8;
 
-  constructor(readonly spec: TrackSpec, world: RAPIER.World, scene: THREE.Scene, shadows: boolean, zone?: "material" | "shadcn") {
+  constructor(readonly spec: TrackSpec, world: RAPIER.World, scene: THREE.Scene, shadows: boolean, zone?: "material" | "shadcn", maxAnisotropy = 1) {
     this.group.name = "track:bonneville";
     const curve = new THREE.CatmullRomCurve3(
       spec.points.map(p => new THREE.Vector3(p.x, p.y, p.z)), true, "centripetal");
@@ -91,11 +99,30 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
     });
     world.createCollider(RAPIER.ColliderDesc.cuboid(SALT_PLAYABLE_HALF_SIZE + 100, 0.5, SALT_PLAYABLE_HALF_SIZE + 100)
       .setTranslation(0, -0.5, 0).setFriction(spec.surfaceGrip).setRestitution(0.01));
-    this.texture = saltTexture();
+    const salt = saltTexture();
+    this.texture = salt.texture;
+    // Bound the sample cost and respect devices without anisotropic filtering.
+    this.texture.anisotropy = Math.max(1, Math.min(8, maxAnisotropy));
     const material = new THREE.MeshStandardMaterial({
       color: 0xeeebe3, map: this.texture,
       roughness: 0.97, metalness: 0,
     });
+    material.onBeforeCompile = shader => {
+      shader.uniforms.uSaltAverage = { value: salt.average };
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>',
+        '#include <common>\nuniform vec3 uSaltAverage;');
+      shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
+        // Fade unresolved detail by its actual pixel footprint, not camera distance.
+        // Keep UVs unwrapped: fract() would introduce false derivatives at tile seams.
+        vec2 saltDx = dFdx(vMapUv) * 512.0;
+        vec2 saltDy = dFdy(vMapUv) * 512.0;
+        float saltFootprint = max(length(saltDx), length(saltDy));
+        float saltDetail = 1.0 - smoothstep(4.0, 24.0, saltFootprint);
+        vec4 saltSample = texture2D(map, vMapUv);
+        diffuseColor *= vec4(mix(uSaltAverage, saltSample.rgb, saltDetail), saltSample.a);
+      `);
+    };
+    material.customProgramCacheKey = () => 'salt-footprint-filter-v1';
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(SALT_VISUAL_SIZE, SALT_VISUAL_SIZE), material);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = shadows;
