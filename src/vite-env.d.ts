@@ -2,6 +2,9 @@
 
 interface Window {
   __hinddy?: {
+    setTheme(theme: "salt" | "material" | "shadcn"): void;
+    teleport(x: number, z: number, y?: number, heading?: number): void;
+    overview(radius?: number): void;
     setInput(input: { throttle: number; brake: number; steer: number; turbo?: boolean }): void;
     snapshot(): {
       speedKph: number;
@@ -11,7 +14,11 @@ interface Window {
       position: { x: number; y: number; z: number };
       wheelContacts: boolean[];
       track: string;
+      worlds: ReturnType<import("./worlds/streamer").WorldStreamer["snapshot"]> | null;
+      physicsColliders: number;
+      theme: import("./design/theme").ThemeTokens & { name?: string; revision: number; materialAccent: string; shaderAccent: string };
       vehicle: string;
+      vehicleInstance: string;
       drawCalls: number;
       triangles: number;
       geometries: number;

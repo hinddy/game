@@ -3,6 +3,8 @@ import RAPIER from "@dimforge/rapier3d";
 import type { TrackSpec } from "./config";
 import { BONNEVILLE_SUN_DIRECTION } from "./bonneville-light";
 import type { TrackRuntime, TrackSample, Checkpoint } from "./track";
+import type { ThemeBridge } from "./design/theme";
+import type { WorldStreamer } from "./worlds/streamer";
 
 // Gameplay stays near the origin; distant scenery is visual only.
 export const SALT_PLAYABLE_HALF_SIZE = 12000;
@@ -55,10 +57,13 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
   readonly samples: TrackSample[];
   readonly spawn: TrackSample;
   readonly checkpoints: Checkpoint[];
-  readonly streamState = { ready: 1, total: 1 };
+  get streamState() { return this.streamer?.state ?? { ready: 0, total: 1 }; }
   private readonly texture: THREE.CanvasTexture;
+  streamer: WorldStreamer | null = null;
+  private disposed = false;
+  private viewRadius = 8;
 
-  constructor(readonly spec: TrackSpec, world: RAPIER.World, scene: THREE.Scene, shadows: boolean) {
+  constructor(readonly spec: TrackSpec, world: RAPIER.World, scene: THREE.Scene, shadows: boolean, zone?: "material" | "shadcn") {
     this.group.name = "track:bonneville";
     const curve = new THREE.CatmullRomCurve3(
       spec.points.map(p => new THREE.Vector3(p.x, p.y, p.z)), true, "centripetal");
@@ -70,7 +75,15 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
         rotation: new THREE.Quaternion().setFromRotationMatrix(
           new THREE.Matrix4().makeBasis(right, new THREE.Vector3(0, 1, 0), tangent)) };
     });
-    this.spawn = this.samples[2];
+    // Start inside the 1 km central strip; preserve the original course geometry.
+    this.spawn = { ...this.samples[0], position: new THREE.Vector3(0, 0, -650), tangent: new THREE.Vector3(0, 0, 1),
+      right: new THREE.Vector3(1, 0, 0), rotation: new THREE.Quaternion() };
+    if (zone) {
+      const side = zone === "material" ? -1 : 1;
+      this.spawn.position.set(side * 680, 0, 150);
+      this.spawn.rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), side * Math.PI / 2);
+      this.spawn.tangent.set(side, 0, 0); this.spawn.right.set(0, 0, -side);
+    }
     this.checkpoints = [0, 0.25, 0.5, 0.75].map(ratio => {
       const sampleIndex = Math.floor(ratio * this.samples.length);
       const sample = this.samples[sampleIndex];
@@ -117,9 +130,16 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
     sky.raycast = () => {};
     this.group.add(sky);
     this.buildMountains();
-    this.buildCourse();
     scene.add(this.group);
   }
+
+  async attachWorlds(world: RAPIER.World, scene: THREE.Scene, theme: ThemeBridge, renderer: THREE.WebGLRenderer, camera: THREE.Camera, shadows: boolean): Promise<void> {
+    const { WorldStreamer } = await import("./worlds/streamer");
+    if (this.disposed) return;
+    this.streamer = new WorldStreamer({ world, scene, theme, shadows, course: () => this.buildCourse(),
+      prepare: group => renderer.compileAsync(group, camera, scene) });
+  }
+  setViewRadius(radius: number): void { this.viewRadius = radius; }
 
   private buildMountains(): void {
     // Two irregular, low silhouettes. No terrain streaming or distant collision.
@@ -147,7 +167,8 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
     }
   }
 
-  private buildCourse(): void {
+  private buildCourse(): THREE.Group {
+    const group = new THREE.Group(); group.name = "world:salt-course";
     const indexes = this.samples.filter((_, i) => i % 4 === 0);
     const cones = new THREE.InstancedMesh(new THREE.ConeGeometry(0.3, 1.1, 6),
       new THREE.MeshStandardMaterial({ color: 0xf46c17, roughness: 0.8 }), indexes.length * 2);
@@ -160,7 +181,7 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
         cones.setMatrixAt(i * 2 + sideIndex, matrix);
       }
     });
-    this.group.add(cones);
+    group.add(cones);
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.09, 4, 6),
       new THREE.MeshStandardMaterial({ color: 0x21344a, roughness: 0.8 }), 8);
     const flags = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6, 0.85, 0.04),
@@ -178,10 +199,11 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
         flags.setMatrixAt(i * 2 + j, matrix);
       }
     });
-    this.group.add(poles, flags);
+    group.add(poles, flags);
+    return group;
   }
 
-  stream(_now: number, _focus: THREE.Vector3, _direction: THREE.Vector3): void {}
+  stream(now: number, focus: THREE.Vector3, _direction: THREE.Vector3): void { this.streamer?.tick(now, focus, this.viewRadius); }
   nearestSample(position: THREE.Vector3): { index: number; sample: TrackSample; distance: number } {
     let nearest = 0, distanceSq = Infinity;
     for (let i = 0; i < this.samples.length; i++) {
@@ -192,6 +214,8 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
   }
 
   dispose(scene: THREE.Scene): void {
+    this.disposed = true;
+    this.streamer?.dispose(); this.streamer = null;
     scene.remove(this.group);
     this.texture.dispose();
     this.group.traverse(object => {

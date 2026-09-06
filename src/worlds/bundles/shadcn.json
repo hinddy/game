@@ -1,0 +1,18 @@
+{
+  "version":1,"id":"shadcn","theme":"shadcn","title":"shadcn / Build from a garage",
+  "elements":[
+    {"id":"nav","kind":"Panel","x":920,"z":-222,"w":300,"d":24,"h":0.65,"label":"IT GARAGE     /     BUILD   DRIVE   SHIP","ramp":true},
+    {"id":"badge","kind":"Button","x":920,"z":-177,"w":70,"d":14,"h":0.65,"label":"ONE DEVELOPER. ONE GARAGE.","state":"selected","ramp":true},
+    {"id":"hero","kind":"Panel","x":920,"z":-120,"w":250,"d":64,"h":1.2,"label":"BIG IDEAS. SMALL GARAGE.","ramp":true},
+    {"id":"start","kind":"Button","x":873,"z":-57,"w":74,"d":24,"h":1.25,"label":"START BUILDING","role":"accent","ramp":true},
+    {"id":"docs","kind":"Button","x":967,"z":-57,"w":74,"d":24,"h":1.25,"label":"READ THE STORY","ramp":true},
+    {"id":"feature-1","kind":"Card","x":818,"z":30,"w":86,"d":84,"h":1.8,"label":"01 / MAKE IT REAL","ramp":true},
+    {"id":"feature-2","kind":"Card","x":920,"z":30,"w":86,"d":84,"h":2.4,"label":"02 / TEST THE LIMIT","ramp":true},
+    {"id":"feature-3","kind":"Card","x":1022,"z":30,"w":86,"d":84,"h":3,"label":"03 / KEEP GOING","ramp":true},
+    {"id":"code","kind":"Terminal","x":860,"z":144,"w":165,"d":82,"h":1.2,"label":"> FROM GARAGE TO GREATNESS","ramp":true},
+    {"id":"plan","kind":"Card","x":1022,"z":137,"w":86,"d":68,"h":1.8,"label":"FOUNDER / SOLO","ramp":true},
+    {"id":"future","kind":"Button","x":1022,"z":196,"w":86,"d":25,"h":1,"label":"MODEL T / COMING","state":"disabled","ramp":true},
+    {"id":"footer","kind":"Panel","x":900,"z":230,"w":250,"d":20,"h":0.6,"label":"BUILT IN A GARAGE. DRIVEN EVERYWHERE.","ramp":true},
+    {"id":"portal","kind":"Portal","x":730,"z":145,"w":22,"d":30,"h":0.35,"label":"SALT / EXIT","role":"accent","ramp":true}
+  ]
+}

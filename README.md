@@ -155,7 +155,8 @@ switch. Right mouse drag or touch drag orbits around the car while continuing to
 follow its translation. The horizon stays level and heading changes are smoothed.
 After two seconds without an orbit gesture, a moving car's view smoothly returns
 behind it; at rest the chosen angle stays. Wheel/pinch adjusts distance within
-4–20 m. F or **Centre view** centres the drone immediately.
+4–20 m on the original grounds, and 4–1200 m in Bonneville for viewing the UI
+layouts from above. F or **Centre view** restores the normal following distance.
 
 Bonneville uses an early-morning palette: muted off-white salt, warm sunlight,
 cool ambient fill and long blue-grey shadows. The shared solar direction sets
@@ -239,3 +240,104 @@ simultaneous camera orbit, touch cancellation, spring return and steering model
 animation across all seven eligible car/ground combinations. All four grounds
 also passed touch launch in the local production build, with no JavaScript
 errors. Tablet landscape and portrait layouts were inspected in touch emulation.
+
+## Composite IT Garage: three streamed worlds
+
+Bonneville now contains a clear 1 km salt corridor (`x = -500..500`) along the
+existing salt field, a Material-inspired dashboard to the west and a shadcn-style
+landing page to the east. The original course, morning, ground texture and distant
+mountains remain. The initial spawn moved into the central corridor, facing +Z.
+The 24 km playable square and 120 km visual ground remain unchanged.
+
+Open `?track=bonneville`, `?track=bonneville&zone=material` or
+`?track=bonneville&zone=shadcn`. The side links start on clear salt at the relevant
+entrance. Drive sideways to explore; wheel/pinch can pull the drone back to 1200 m,
+and dragging up reaches a top-down angle. Centre view/F restores the chase camera.
+There is no React, Material UI or shadcn runtime dependency: these are procedural
+3D interpretations of the design languages.
+
+### Ownership and loading
+
+The permanent shell owns HTML/input, the renderer, camera, car, audio and one
+Rapier world. `BonnevilleRuntime` owns the shared salt floor/collider, sky and
+mountains. Crossing a UI-world boundary does not recreate any of these, replace
+the car, reset velocity or interrupt input.
+
+`WorldStreamer` owns only the active neighbourhood. The three content bundles are
+versioned JSON assets in `src/worlds/bundles/`, emitted separately with hashed URLs.
+They are fetched as data, not imported as per-world JavaScript modules, so released
+descriptors are eligible for garbage collection. The small common streamer module
+is lazy-loaded only for Bonneville and intentionally stays in the JS module cache.
+At central spawn only the salt packet is fetched; side content loads on approach
+or when the camera zooms out to overview scale.
+
+`policy.ts` enforces at most three resident/pending worlds, prioritising the active
+region and nearby candidates. Distance hysteresis keeps an old world while it is
+still nearby, then unloads it. `setNeighbourhood()` accepts a bounded manifest of
+up to 64 local entries without replacing physics. The selector is tested against
+1000 candidates. A production service for paging a global catalogue and origin
+rebasing for travel beyond the current 24 km square are future extensions; this
+MVP does not claim to have loaded or benchmarked 1000 full worlds.
+
+Each UI world builds at most two components per frame, stopping after a 2 ms
+budget check, then prepares shader programs before activation and fades in.
+The budget is checked between components, so a single constructor or GPU upload
+can still exceed it. If a packet is late while the car is inside a future object,
+activation waits until the site is clear. The common salt remains drivable.
+Failed requests retry after a cooldown; obsolete requests are aborted. A disposed
+streamer ignores late fetch/compile completions.
+
+Unloading removes owned Rapier colliders, instance buffers, geometries, the glyph
+atlas/Canvas, local shader material, theme subscriptions and descriptor references.
+The four shared themed materials stay with the shell. Browser HTTP cache is kept
+for return visits; GC and GPU-driver reclamation happen on their own schedules,
+and Rapier can reuse freed WASM allocations without shrinking its linear memory.
+`vercel.json` configures immutable caching for hashed `/assets/` files, following
+[Vercel's static-header configuration](https://vercel.com/docs/project-configuration/vercel-json).
+Keep unhashed, mutable files outside that directory. These headers take effect
+on deployment; local Vite preview does not apply Vercel configuration.
+
+### Shared design system
+
+Edit `src/design/tokens.css` for `--surface`, `--accent`, `--border`, `--text`,
+`--radius`, `--roughness` and `--metalness`. `ThemeBridge` reads computed CSS,
+updates shared Three materials and uniform references in the render frame, and
+refreshes rounded geometry/collision when radius changes. Hex and browser-supported
+CSS colours, including modern colour functions, resolve to the same sRGB colour.
+The active region selects a preset; HTML and all currently loaded 3D UI materials
+use that common palette. There is no player-facing theme switch.
+
+`UIWorld` is the shared factory for Button, Card, Panel, Terminal and Portal.
+Mass elements use InstancedMesh batches by material role and a shared unit profile
+within each batch. Labels use one 512px atlas per world. Each instance supports
+idle/hover/pressed/selected/disabled state; light emission uses the shared accent
+without extra point lights. Hover works by mouse raycast or car proximity; a click,
+tap or drive onto an enabled control selects it and animates pressing. Disabled
+controls remain physical surfaces and cannot be activated. Portals are drive-through
+archways/exit markers, not teleporters or network routes.
+
+Rounded convex colliders derive from the same unit profile as rendering; ramps
+have matching convex geometry. Press animations move the visual and collider
+together, with a bounded travel above supporting panels. Overview camera near-plane
+distance scales with zoom to prevent coplanar-surface flicker at large distances.
+
+### Verification
+
+`bun run verify` includes 23 tests, JSON budgets/schema, a 1000-candidate residency
+cap, shared geometry and the existing driving regressions. Optional browser scripts
+use an existing Playwright installation via `PLAYWRIGHT_MODULE_PATH`:
+
+- `scripts/worlds-smoke.cjs`: theme changes in the next frame, shader/material colour
+  equality, a real boundary crossing without replacing the car, ramp driving,
+  press/release, repeated unloads, GPU counters and JS heap after forced GC.
+- `scripts/worlds-delayed.cjs`: delayed packets cannot trap the car or install into
+  a disposed physics world after a track switch.
+- `scripts/worlds-production.cjs`: the three entry URLs, separate packet fetches,
+  no production debug API and keyboard launch with a focused volume slider.
+
+Observed across three return cycles: each side returns to 23 geometries and five
+textures; Material has 44 colliders including the shared floor/car, shadcn has 31.
+JS heap is measured separately from WASM/GPU memory; small warm-cache/JIT growth
+is allowed rather than treating a heap sample as an exact memory-leak proof.
+The 3G-like test uses 400 ms latency, 50 kB/s download and 4x CPU slowdown.
+These are desktop Chromium emulation results, not a physical Android certification.

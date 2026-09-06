@@ -201,6 +201,41 @@ describe("manual input and cruise state", () => {
 
 import { DroneCamera } from "./drone-camera";
 import { joystickAxes } from "./joystick";
+import { validateBundle } from "./worlds/types";
+import { roundedPanelGeometry } from "./design/primitives";
+import { planResidency, regionAt } from "./worlds/policy";
+
+test("world residency stays bounded even with a thousand overlapping candidates", () => {
+  const entries = Array.from({ length: 1000 }, (_, i) => ({ id: `world-${i}`, url: `${i}.json`, x: i, z: 0, halfWidth: 100, halfDepth: 100 }));
+  const wanted = planResidency(entries, 0, 0, 1200, new Set(), "world-999");
+  expect(wanted).toHaveLength(3);
+  expect(wanted[0].id).toBe("world-999");
+  expect(new Set(wanted.map(e => e.id)).size).toBe(3);
+  expect(regionAt([{ ...entries[0] }, { ...entries[1], region: [500, 1000, -100, 100] }], 501, 0)).toBe("world-1");
+  expect(regionAt([{ ...entries[0] }, { ...entries[1], region: [500, 1000, -100, 100] }], 500, 0)).toBe("world-0");
+});
+
+test("all world packets are valid bounded JSON and leave the central kilometre open", async () => {
+  for (const id of ["salt", "material", "shadcn"] as const) {
+    const text = await Bun.file(new URL(`./worlds/bundles/${id}.json`, import.meta.url)).text();
+    expect(text.length).toBeLessThan(16384);
+    const bundle = validateBundle(JSON.parse(text), id);
+    for (const element of bundle.elements) expect(Math.abs(element.x) - element.w / 2).toBeGreaterThanOrEqual(500);
+    if (id !== "salt") for (const kind of ["Button", "Card", "Panel", "Terminal", "Portal"]) expect(bundle.elements.some(e => e.kind === kind)).toBe(true);
+  }
+  expect(() => validateBundle({ version: 1, id: "salt", theme: "salt", title: "bad", elements: [{ id: "bad", kind: "Card", x: NaN }] }, "salt")).toThrow();
+});
+
+test("token-controlled shared panel geometry keeps its collider envelope and finite normals", () => {
+  for (const radius of [0, .06, .22, 100]) {
+    const geometry = roundedPanelGeometry(radius); geometry.computeBoundingBox();
+    expect(geometry.boundingBox!.max.y).toBeCloseTo(.5);
+    expect(geometry.boundingBox!.min.y).toBeCloseTo(-.5);
+    expect(geometry.boundingBox!.max.x).toBeCloseTo(.5);
+    expect(Array.from(geometry.getAttribute("normal").array).every(Number.isFinite)).toBe(true);
+    geometry.dispose();
+  }
+});
 
 test("analog stick mixes proportional throttle and steering, with a neutral coasting axis", () => {
   const controls = new DriveControls();

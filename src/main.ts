@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d";
 import "./style.css";
+import "./design/tokens.css";
+import { ThemeBridge } from "./design/theme";
 import { TRACKS, VEHICLES, vehicleForTrack, type VehicleId, WORLD_BOUNDARIES, WORLD_PHYSICS, type TrackId } from "./config";
 import { TrackRuntime, type TrackRenderOptions, type TrackSample } from "./track";
 import { GarageVehicle, type DriveInput } from "./vehicle";
@@ -64,6 +66,7 @@ renderer.shadowMap.enabled = !lightSpeed;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
+const themeBridge = new ThemeBridge();
 scene.background = new THREE.Color(0x07101c);
 scene.fog = new THREE.FogExp2(0x07101c, lightSpeed ? 0.009 : 0.0065);
 
@@ -122,6 +125,7 @@ const soundButton = requiredElement<HTMLButtonElement>("#sound-toggle");
 const volumeControl = requiredElement<HTMLInputElement>("#sound-volume");
 const boostStatus = requiredElement<HTMLElement>("#boost-status");
 const vehicleRestriction = requiredElement<HTMLElement>("#vehicle-restriction");
+const worldStatus = requiredElement<HTMLElement>("#world-status");
 
 const driveControls = new DriveControls();
 const drivePad = new DrivePad(requiredElement<HTMLElement>("#drive-pad"), requiredElement<HTMLButtonElement>("#nitro-button"), driveControls, () => {
@@ -169,7 +173,11 @@ function currentInput(): DriveInput {
   return driveControls.input();
 }
 
+let driveUISignature = "";
 function updateDriveUI(): void {
+  const signature = `${driveControls.mode}|${driveControls.available}|${driveControls.active}|${driveControls.speedKph}`;
+  if (signature === driveUISignature) return;
+  driveUISignature = signature;
   driveModeControl.value = driveControls.mode;
   const forwardLabel = touchDevice ? "▲" : "W";
   const brakeLabel = touchDevice ? "▼" : "S";
@@ -223,8 +231,11 @@ function createRuntime(trackId: TrackId): Runtime {
   const world = new RAPIER.World(WORLD_PHYSICS.gravity);
   world.timestep = WORLD_PHYSICS.fixedStep;
   const track = trackId === "bonneville"
-    ? new BonnevilleRuntime(spec, world, scene, !lightSpeed)
+    ? new BonnevilleRuntime(spec, world, scene, !lightSpeed,
+      devParams.get("zone") === "material" ? "material" : devParams.get("zone") === "shadcn" ? "shadcn" : undefined)
     : new TrackRuntime(spec, world, scene, trackRenderOptions);
+  if (track instanceof BonnevilleRuntime) void track.attachWorlds(world, scene, themeBridge, renderer, camera, !lightSpeed)
+    .catch(() => { if (runtime?.track === track) showNotice("Garage worlds unavailable · salt remains drivable"); });
   const vehicle = new GarageVehicle(world, spec, track.spawn, scene, VEHICLES[activeVehicle]);
   drivePad.setTurboAvailable(!!vehicle.spec.turbo);
 
@@ -269,6 +280,8 @@ function switchTrack(trackId: TrackId): void {
   droneGestures.clear();
   engineAudio.update(0, 0, 0, false);
   const salt = trackId === "bonneville";
+  themeBridge.setTheme("salt");
+  drone.maxRadius = salt ? 1200 : 20;
   document.body.classList.toggle("salt-world", salt);
   if (cityHorizon) cityHorizon.visible = !salt;
   scene.background = new THREE.Color(salt ? 0xd1c7bd : 0x07101c);
@@ -363,6 +376,35 @@ requiredElement<HTMLButtonElement>("#camera-reset").addEventListener("click", ()
 requiredElement<HTMLButtonElement>("#vehicle-reset").addEventListener("click", () => {
   resetRequested = true; canvas.focus({ preventScroll: true });
 });
+const uiRay = new THREE.Raycaster();
+const uiPointer = new THREE.Vector2();
+let uiPress: { id: number; x: number; y: number } | null = null;
+function pickWorldUI(event: PointerEvent, down = false, click = false): void {
+  if (!(runtime?.track instanceof BonnevilleRuntime)) return;
+  const rect = canvas.getBoundingClientRect();
+  uiPointer.set((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2);
+  uiRay.setFromCamera(uiPointer, camera); runtime.track.streamer?.pick(uiRay, down, click);
+}
+canvas.addEventListener("pointermove", event => {
+  if (event.pointerType === "mouse" && event.buttons === 0) pickWorldUI(event);
+  if (uiPress && Math.hypot(event.clientX - uiPress.x, event.clientY - uiPress.y) > 8) {
+    uiPress = null;
+    if (runtime?.track instanceof BonnevilleRuntime) runtime.track.streamer?.clearPointer();
+  }
+});
+canvas.addEventListener("pointerdown", event => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  uiPress = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  pickWorldUI(event, event.pointerType === "mouse");
+});
+canvas.addEventListener("pointerup", event => {
+  if (uiPress?.id === event.pointerId) pickWorldUI(event, false, true);
+  uiPress = null;
+});
+for (const name of ["pointercancel", "pointerleave"] as const) canvas.addEventListener(name, () => {
+  uiPress = null;
+  if (runtime?.track instanceof BonnevilleRuntime) runtime.track.streamer?.clearPointer();
+});
 window.addEventListener("keydown", (event) => {
   const target = event.target;
   // Preserve actual text entry and native arrow/space editing, but let WASD/R/F/Shift
@@ -394,6 +436,7 @@ function pauseControls(): void {
   cancelDriving(); devInput = null;
   if (runtime) runtime.vehicle.boost = 0;
   droneGestures.clear();
+  if (runtime?.track instanceof BonnevilleRuntime) runtime.track.streamer?.clearPointer();
   engineAudio.suspend();
 }
 window.addEventListener("blur", pauseControls);
@@ -442,6 +485,7 @@ function frame(now: number): void {
   if (document.hidden) { previousTime = now; accumulator = 0; return; }
 
   const frameDt = Math.min((now - previousTime) / 1000, 0.1);
+  themeBridge.sync();
   drivePad.update(frameDt, runtime.vehicle.boost > 0.05);
   previousTime = now;
   accumulator += frameDt;
@@ -468,7 +512,15 @@ function frame(now: number): void {
   boostStatus.textContent = runtime.vehicle.boost > 0.05 ? "NITRO ACTIVE" : activeVehicle === "buggy" ? driveControls.mode === "cruise" ? (touchDevice ? "Hold NITRO while cruising" : "Shift · NITRO while cruising") : (touchDevice ? "Tilt forward + NITRO" : "Shift + W · NITRO") : "Nitro unavailable";
   boostStatus.classList.toggle("is-boosting", runtime.vehicle.boost > 0.05);
   updateCamera(runtime, frameDt);
+  const desiredNear = activeTrack === "bonneville" ? Math.max(.2, drone.radius / 60) : .08;
+  if (Math.abs(camera.near - desiredNear) > .0001) { camera.near = desiredNear; camera.updateProjectionMatrix(); }
+  if (runtime.track instanceof BonnevilleRuntime) runtime.track.setViewRadius(drone.radius);
   runtime.track.stream(now, runtime.vehicle.position(vehiclePosition), camera.getWorldDirection(cameraViewDirection));
+  worldStatus.hidden = !(runtime.track instanceof BonnevilleRuntime);
+  if (runtime.track instanceof BonnevilleRuntime) {
+    const hint = runtime.track.streamer?.hint ?? "← Material · 1 km salt strip · shadcn →";
+    if (worldStatus.textContent !== hint) worldStatus.textContent = hint;
+  }
   const streamState = runtime.track.streamState;
   streamElement.textContent = `${streamState.ready} / ${streamState.total}`;
   speedElement.textContent = String(Math.round(runtime.vehicle.speedKph()));
@@ -492,6 +544,15 @@ async function start(): Promise<void> {
   streamHorizonAfterFirstPaint();
   if (import.meta.env.DEV) {
     window.__hinddy = {
+      setTheme(theme) { themeBridge.setTheme(theme); },
+      teleport(x, z, y = .85, heading = 0) {
+        if (!runtime) return;
+        runtime.vehicle.body.setTranslation({ x, y, z }, true);
+        runtime.vehicle.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        runtime.vehicle.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        runtime.vehicle.body.setRotation({ x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) }, true);
+      },
+      overview(radius = 420) { drone.radius = Math.min(drone.maxRadius, radius); drone.elevation = Math.PI / 2 - .01; drone.yaw = Math.PI; drone.orbit(0, 0); },
       setInput(input) {
         devInput = input;
       },
@@ -509,7 +570,12 @@ async function start(): Promise<void> {
             (_, index) => runtime!.vehicle.controller.wheelIsInContact(index),
           ),
           track: runtime.track.spec.id,
+          worlds: runtime.track instanceof BonnevilleRuntime ? runtime.track.streamer?.snapshot() ?? null : null,
+          physicsColliders: runtime.world.colliders.len(),
+          theme: { name: document.documentElement.dataset.theme, revision: themeBridge.revision, ...themeBridge.tokens,
+            materialAccent: themeBridge.materials.accent.color.getHexString(), shaderAccent: themeBridge.uniforms.uAccent.value.getHexString() },
           vehicle: runtime.vehicle.spec.id,
+          vehicleInstance: runtime.vehicle.visual.uuid,
           drawCalls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
           geometries: renderer.info.memory.geometries,

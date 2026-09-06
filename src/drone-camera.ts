@@ -12,14 +12,15 @@ export class DroneCamera {
   yaw = 0;
   elevation = defaultElevation;
   radius = Math.hypot(6.6, 3.9);
+  maxRadius = 20;
 
   orbit(dx: number, dy: number): void {
     this.yaw = THREE.MathUtils.euclideanModulo(this.yaw - dx * 0.007 + Math.PI, Math.PI * 2) - Math.PI;
-    this.elevation = THREE.MathUtils.clamp(this.elevation - dy * 0.005, 0.12, 1.25);
+    this.elevation = THREE.MathUtils.clamp(this.elevation - dy * 0.005, 0.12, Math.PI / 2 - .01);
     this.returnDelay = 2;
   }
-  zoom(factor: number): void { this.radius = THREE.MathUtils.clamp(this.radius * factor, 4, 20); }
-  recenter(): void { this.yaw = 0; this.elevation = defaultElevation; this.returnDelay = 0; this.snap = true; }
+  zoom(factor: number): void { this.radius = THREE.MathUtils.clamp(this.radius * factor, 4, this.maxRadius); }
+  recenter(): void { this.yaw = 0; this.elevation = defaultElevation; this.radius = Math.hypot(6.6, 3.9); this.returnDelay = 0; this.snap = true; }
 
   update(camera: THREE.PerspectiveCamera, position: THREE.Vector3, forward: THREE.Vector3,
     dt: number, speedKph: number, interacting = false): void {

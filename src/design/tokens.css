@@ -1,0 +1,32 @@
+:root, :root[data-theme="salt"] {
+  --surface: #142333; --accent: #ff790d; --border: #61758a; --text: #edf3fa;
+  --radius: 12px; --roughness: .72; --metalness: .12;
+}
+:root[data-theme="material"] {
+  --surface: #e9e4f5; --accent: #6750a4; --border: #9284ad; --text: #211b32;
+  --radius: 22px; --roughness: .68; --metalness: .06;
+}
+:root[data-theme="shadcn"] {
+  --surface: #202123; --accent: #e9ecf0; --border: #56595e; --text: #fafafa;
+  --radius: 6px; --roughness: .82; --metalness: .08;
+}
+:root {
+  color: var(--text);
+  --ink: var(--text); --orange: var(--accent); --line: var(--border);
+  --muted: var(--border); --panel: var(--surface);
+  --panel-strong: var(--surface); --orange-soft: var(--surface);
+}
+@supports (background: color-mix(in srgb, white, black)) {
+  :root { --muted: color-mix(in srgb, var(--text) 66%, var(--surface));
+    --panel: color-mix(in srgb, var(--surface) 92%, transparent); --orange-soft: color-mix(in srgb, var(--accent) 18%, transparent); }
+}
+#boost-status, #boost-status.is-boosting { color: var(--accent); }
+.vehicle-picker, .telemetry, .track-button, .drive-tools button { border-radius: var(--radius); }
+.vehicle-options button, .drive-mode-label select, .sound-controls button, #cruise-toggle {
+  background: var(--panel-strong); color: var(--text); border-color: var(--border); border-radius: calc(var(--radius) * .6);
+}
+.drive-pad { background: radial-gradient(circle at 35% 25%, var(--border), var(--surface) 70%); border-color: var(--border); }
+.stick-label, .touch-hint { color: var(--text); }
+.drive-pad.is-held { border-color: var(--accent); }
+#nitro-button { background: radial-gradient(circle at 35% 25%, var(--accent), var(--surface) 85%); color: var(--text); border-color: var(--accent); }
+.salt-world h1, .salt-world .eyebrow { color: var(--accent); }

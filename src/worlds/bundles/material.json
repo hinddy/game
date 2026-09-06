@@ -1,0 +1,28 @@
+{
+  "version":1,"id":"material","theme":"material","title":"Material / Garage dashboard",
+  "elements":[
+    {"id":"appbar","kind":"Panel","x":-920,"z":-190,"w":300,"d":26,"h":1.2,"label":"IT GARAGE / WORKSPACE","ramp":true},
+    {"id":"nav","kind":"Panel","x":-1060,"z":5,"w":38,"d":300,"h":1,"label":"WORKSPACE","ramp":true},
+    {"id":"nav-home","kind":"Button","x":-1060,"z":-108,"w":30,"d":20,"h":1.1,"label":"OVERVIEW","state":"selected"},
+    {"id":"nav-build","kind":"Button","x":-1060,"z":-60,"w":30,"d":20,"h":1.1,"label":"BUILDS"},
+    {"id":"nav-fleet","kind":"Button","x":-1060,"z":-12,"w":30,"d":20,"h":1.1,"label":"GARAGE"},
+    {"id":"nav-team","kind":"Button","x":-1060,"z":36,"w":30,"d":20,"h":1.1,"label":"TEAM","state":"disabled"},
+    {"id":"stat-build","kind":"Card","x":-986,"z":-118,"w":48,"d":43,"h":1.5,"label":"BUILDS / 128","ramp":true},
+    {"id":"stat-range","kind":"Card","x":-917,"z":-118,"w":48,"d":43,"h":2,"label":"RANGE / 240","ramp":true},
+    {"id":"stat-power","kind":"Card","x":-848,"z":-118,"w":48,"d":43,"h":2.5,"label":"POWER / 86%","ramp":true},
+    {"id":"stat-ready","kind":"Card","x":-779,"z":-118,"w":48,"d":43,"h":1.5,"label":"STATUS / READY","ramp":true},
+    {"id":"chart","kind":"Panel","x":-951,"z":-5,"w":118,"d":118,"h":0.5,"label":"BUILD VELOCITY","ramp":true},
+    {"id":"bar-1","kind":"Card","x":-992,"z":38,"w":10,"d":22,"h":1.5,"role":"accent","ramp":true},
+    {"id":"bar-2","kind":"Card","x":-972,"z":30,"w":10,"d":38,"h":2,"role":"accent","ramp":true},
+    {"id":"bar-3","kind":"Card","x":-952,"z":19,"w":10,"d":60,"h":2.5,"role":"accent","ramp":true},
+    {"id":"bar-4","kind":"Card","x":-932,"z":10,"w":10,"d":78,"h":3,"role":"accent","ramp":true},
+    {"id":"bar-5","kind":"Card","x":-912,"z":2,"w":10,"d":94,"h":3.5,"role":"accent","ramp":true},
+    {"id":"activity","kind":"Panel","x":-807,"z":-5,"w":100,"d":118,"h":1,"label":"RECENT ACTIVITY","ramp":true},
+    {"id":"activity-1","kind":"Button","x":-807,"z":-32,"w":84,"d":18,"h":1.1,"label":"QUADRO / PASSED","state":"selected"},
+    {"id":"activity-2","kind":"Button","x":-807,"z":0,"w":84,"d":18,"h":1.1,"label":"BUGGY / READY"},
+    {"id":"activity-3","kind":"Button","x":-807,"z":32,"w":84,"d":18,"h":1.1,"label":"MODEL T / LATER","state":"disabled"},
+    {"id":"terminal","kind":"Terminal","x":-951,"z":125,"w":118,"d":67,"h":1.4,"label":"> BUILD YOUR FIRST MACHINE","ramp":true},
+    {"id":"deploy","kind":"Button","x":-807,"z":116,"w":88,"d":38,"h":1.3,"label":"RUN BUILD","role":"accent","ramp":true},
+    {"id":"portal","kind":"Portal","x":-719,"z":150,"w":22,"d":30,"h":0.35,"label":"SALT / EXIT","role":"accent","ramp":true}
+  ]
+}
