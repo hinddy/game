@@ -202,16 +202,30 @@ html, body, #app { overscroll-behavior: none; }
 .drive-dock { position: fixed; z-index: 3; right: max(18px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); width: 218px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .drive-tools { display: flex; gap: 8px; margin: 0 0 9px; }
 .drive-tools button { flex: 1; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; touch-action: manipulation; }
-.drive-pad { width: 218px; height: 218px; border: 1px solid #8fa5bd66; border-radius: 50%; padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 5px; background: radial-gradient(circle at 45% 35%, #23394ce8, #07111ee8); box-shadow: 0 10px 35px #0003, inset 0 1px 0 #ffffff20; touch-action: none; }
-.drive-pad button { min-width: 44px; min-height: 44px; border: 1px solid #b6c4d44d; border-radius: 16px; color: #eff5ff; background: linear-gradient(#30465b, #182b3d); font: inherit; font-size: 20px; cursor: pointer; touch-action: none; padding: 0; box-shadow: inset 0 1px 0 #fff2, 0 3px 5px #0003; }
-.pad-up { grid-column: 2; grid-row: 1; }
-.pad-left { grid-column: 1; grid-row: 2; }
-.drive-pad .pad-turbo { grid-column: 2; grid-row: 2; border-radius: 50%; font-size: 10px; font-weight: 900; letter-spacing: .03em; color: #ffd2aa; border-color: #ff8b3c99; background: radial-gradient(circle at 40% 30%, #9d4a1b, #4b2415); }
-.pad-right { grid-column: 3; grid-row: 2; }
-.pad-down { grid-column: 2; grid-row: 3; }
-.drive-pad button.is-held { background: #bf5c1b; border-color: #ffd0a0; box-shadow: inset 0 2px 7px #0005, 0 0 12px #ff730044; }
-.drive-pad button:disabled { opacity: .38; cursor: default; }
-.drive-pad button:focus-visible, .drive-tools button:focus-visible { outline: 2px solid #ffb36b; outline-offset: 3px; }
+.drive-pad { position: relative; width: 218px; height: 218px; border: 1px solid #8fa5bd99; border-radius: 50%; background: radial-gradient(circle at 45% 35%, #31475cf5, #07111ef5); box-shadow: 0 10px 35px #0003, inset 0 2px 1px #ffffff38, inset 0 -5px 8px #0009; touch-action: none; cursor: grab; }
+.drive-pad.is-held { cursor: grabbing; border-color: #ffc18a; }
+.drive-pad > * { pointer-events: none; }
+.stick-well { position: absolute; inset: 18%; border-radius: 50%; background: radial-gradient(circle, #020a13 15%, #0d1c2c 65%, #31465a); box-shadow: inset 0 4px 12px #000a, 0 1px 1px #fff3; }
+.stick-well::after { content: ""; position: absolute; inset: 24%; border: 1px dashed #7890a044; border-radius: 50%; }
+.stick-knob { position: absolute; width: 36%; height: 36%; left: 32%; top: 32%; will-change: transform; }
+.stick-ball { display: block; position: relative; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 30% 24%, #eff6fc 0%, #acbed0 16%, #526f8b 46%, #20364d 72%, #091625 100%); box-shadow: 5px 12px 14px #0008, inset 0 1px 2px #fff9, inset -3px -6px 8px #0007; }
+.stick-ball::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(ellipse at 29% 22%, #fff8, transparent 38%); }
+.stick-meridians { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(var(--roll-x, 0deg)) rotateY(var(--roll-y, 0deg)); }
+.stick-meridians::before, .stick-meridians::after { content: ""; position: absolute; border: 3px solid #f29a54bb; border-radius: 50%; inset: 6% 25%; }
+.stick-meridians::after { inset: 25% 6%; border-width: 2px; border-color: #d5e4ee88; }
+.stick-label { position: absolute; color: #c7d6e5; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.stick-north { top: 9%; left: 50%; transform: translateX(-50%); }
+.stick-south { bottom: 9%; left: 50%; transform: translateX(-50%); font-size: 8px; white-space: nowrap; }
+.stick-west { left: 9%; top: 47%; }
+.stick-east { right: 9%; top: 47%; }
+.stick-help { text-align: center; color: var(--ink); background: var(--panel); padding: 5px; border-radius: 5px; margin: 8px 0 0; font-size: 10px; }
+.nitro-dock { position: fixed; z-index: 3; left: max(24px, env(safe-area-inset-left)); bottom: max(28px, env(safe-area-inset-bottom)); user-select: none; -webkit-user-select: none; }
+#nitro-button { display: grid; align-content: center; gap: 6px; width: 112px; height: 112px; border-radius: 50%; border: 2px solid #e9a05e; color: #ffe6c8; background: radial-gradient(circle at 35% 25%, #b46736, #583019 55%, #271910); box-shadow: 0 8px 22px #0004, inset 0 2px 3px #fff4, inset 0 -5px 8px #0007; font: inherit; font-size: 16px; font-weight: 850; letter-spacing: .08em; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
+#nitro-button small { font-size: 9px; font-weight: 500; letter-spacing: .16em; }
+#nitro-button.is-held { background: radial-gradient(circle at 40% 30%, #cf833b, #7d3d18); box-shadow: inset 0 3px 10px #0008; }
+#nitro-button.is-boosting { border-color: #88efff; color: #c2faff; box-shadow: 0 0 22px #49dfff55, inset 0 1px 4px #fff4; }
+#nitro-button:disabled { opacity: .35; cursor: default; }
+.drive-pad:focus-visible, #nitro-button:focus-visible, .drive-tools button:focus-visible { outline: 2px solid #ffb36b; outline-offset: 3px; }
 .touch-hint { display: none; margin: 7px 0 0; font-size: 10px; text-align: center; color: var(--muted); }
 @media (max-height: 850px), (max-width: 1100px) {
   .track-picker { width: min(460px, calc(100vw - 280px)); grid-template-columns: 1fr 1fr; bottom: max(14px, env(safe-area-inset-bottom)); gap: 5px; }
@@ -240,12 +254,28 @@ html, body, #app { overscroll-behavior: none; }
   .track-button { grid-template-columns: 23px 1fr; gap: 4px; }
   .track-button strong { font-size: 10px; }
   .drive-dock { width: 202px; right: 10px; }
-  .drive-pad { width: 202px; height: 202px; padding: 12px; gap: 4px; }
+  .drive-pad { width: 202px; height: 202px; }
 }
 @media (max-height: 560px) {
   .telemetry { display: none; }
   .drive-dock { width: 190px; bottom: 8px; }
-  .drive-pad { width: 190px; height: 190px; padding: 9px; gap: 3px; }
+  .drive-pad { width: 190px; height: 190px; }
   .drive-tools { margin-bottom: 5px; }
   .touch-hint { display: none; }
+}
+/* Keep both thumb zones clear; the ground selector sits between them. */
+.track-picker { left: 164px; right: 256px; bottom: max(18px, env(safe-area-inset-bottom)); width: auto; max-width: 500px; grid-template-columns: 1fr 1fr; }
+.track-button { min-height: 48px; }
+.track-button small { display: none; }
+.controls { bottom: 133px; left: 280px; right: 270px; max-width: none; justify-content: center; }
+@media (max-width: 640px) {
+  .track-picker { left: 10px; right: 225px; bottom: 161px; min-width: 0; grid-template-columns: 1fr; }
+  .nitro-dock { left: 22px; bottom: 27px; }
+  #nitro-button { width: 102px; height: 102px; }
+  .vehicle-picker { max-height: calc(100dvh - 465px); }
+}
+@media (max-height: 560px) {
+  .stick-help { display: none; }
+  .track-picker { left: 152px; right: 228px; bottom: 10px; }
+  .vehicle-picker { max-height: calc(100dvh - 198px); }
 }

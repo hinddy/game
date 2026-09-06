@@ -195,7 +195,8 @@ A startup issue was reproduced at https://hinddy.vercel.app: with the volume
 slider focused, holding W left Quadro at 0 km/h; removing focus allowed it to
 accelerate. The input handler now accepts WASD/Shift from range/select controls
 while preserving their native arrow-key editing and actual text entry. Pointer
-selection of settings returns focus to the canvas. This fix requires a new deploy.
+selection of settings returns focus to the canvas. The updated Vercel deployment
+was checked again: Quadro now accelerates with the volume slider focused.
 
 Validation: 17 unit tests, TypeScript and production build passed. Browser checks
 on the local production build covered all seven eligible car/ground combinations:

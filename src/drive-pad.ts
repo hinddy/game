@@ -1,78 +1,110 @@
-import { type DriveAction, DriveControls } from "./drive-controls";
+import { DriveControls } from "./drive-controls";
+import { joystickAxes } from "./joystick";
 
-/** Each finger owns its action; releasing one finger never releases another. */
+/** One captured thumb owns the stick; the other hand independently holds nitro. */
 export class DrivePad {
-  private readonly pointers = new Map<number, { button: HTMLButtonElement; source: string }>();
-  private readonly buttons: HTMLButtonElement[];
+  private pointer: number | null = null;
+  private readonly nitroPointers = new Set<number>();
+  private readonly knob: HTMLElement;
+  private x = 0;
+  private y = 0;
+  private visualX = 0;
+  private visualY = 0;
+  private velocityX = 0;
+  private velocityY = 0;
 
-  constructor(private readonly root: HTMLElement, private readonly controls: DriveControls,
-    onInput: () => void) {
-    this.buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-drive]")];
-    root.addEventListener("contextmenu", event => event.preventDefault());
+  constructor(private readonly root: HTMLElement, private readonly nitro: HTMLButtonElement,
+    private readonly controls: DriveControls, onInput: () => void) {
+    this.knob = root.querySelector<HTMLElement>(".stick-knob")!;
+    for (const element of [root, nitro]) element.addEventListener("contextmenu", event => event.preventDefault());
     root.addEventListener("pointerdown", event => {
-      const button = (event.target as Element).closest<HTMLButtonElement>("[data-drive]");
-      if (!button || button.disabled || (event.pointerType === "mouse" && event.button !== 0)) return;
-      event.preventDefault(); // Keep game focus and allow simultaneous finger presses.
-      const source = "pad:" + event.pointerId;
-      this.pointers.set(event.pointerId, { button, source });
-      controls.pressAction(source, button.dataset.drive as DriveAction);
-      button.setPointerCapture(event.pointerId);
-      onInput(); this.refresh();
+      if (this.pointer !== null || (event.pointerType === "mouse" && event.button !== 0)) return;
+      event.preventDefault();
+      root.focus({ preventScroll: true });
+      this.pointer = event.pointerId;
+      root.setPointerCapture(event.pointerId);
+      root.classList.add("is-held");
+      this.move(event); onInput();
+    });
+    root.addEventListener("pointermove", event => {
+      if (event.pointerId !== this.pointer) return;
+      event.preventDefault(); this.move(event);
     });
     for (const name of ["pointerup", "pointercancel", "lostpointercapture"] as const) {
-      root.addEventListener(name, event => {
-        const held = this.pointers.get(event.pointerId);
-        if (!held) return;
-        this.pointers.delete(event.pointerId);
-        controls.releaseAction(held.source);
-        if (held.button.hasPointerCapture(event.pointerId)) held.button.releasePointerCapture(event.pointerId);
-        this.refresh();
+      root.addEventListener(name, event => { if (event.pointerId === this.pointer) this.releaseStick(); });
+      nitro.addEventListener(name, event => {
+        if (!this.nitroPointers.delete(event.pointerId)) return;
+        controls.releaseAction("nitro:" + event.pointerId);
+        if (nitro.hasPointerCapture(event.pointerId)) nitro.releasePointerCapture(event.pointerId);
       });
     }
-    // The on-screen controls also remain usable with Tab + Space/Enter.
-    root.addEventListener("keydown", event => {
+    nitro.addEventListener("pointerdown", event => {
+      if (nitro.disabled || (event.pointerType === "mouse" && event.button !== 0)) return;
+      event.preventDefault();
+      this.nitroPointers.add(event.pointerId);
+      controls.pressAction("nitro:" + event.pointerId, "turbo");
+      nitro.setPointerCapture(event.pointerId); onInput();
+    });
+    nitro.addEventListener("keydown", event => {
       if (event.code !== "Space" && event.code !== "Enter") return;
-      const button = (event.target as Element).closest<HTMLButtonElement>("[data-drive]");
-      if (!button || button.disabled) return;
       event.preventDefault(); event.stopPropagation();
-      if (!event.repeat) {
-        controls.pressAction("pad-key:" + button.dataset.drive, button.dataset.drive as DriveAction);
-        onInput(); this.refresh();
-      }
+      if (!nitro.disabled && !event.repeat) { controls.pressAction("nitro-key", "turbo"); onInput(); }
     });
-    root.addEventListener("keyup", event => {
+    nitro.addEventListener("keyup", event => {
       if (event.code !== "Space" && event.code !== "Enter") return;
-      const button = (event.target as Element).closest<HTMLButtonElement>("[data-drive]");
-      if (!button) return;
-      event.preventDefault(); event.stopPropagation();
-      controls.releaseAction("pad-key:" + button.dataset.drive); this.refresh();
+      event.preventDefault(); event.stopPropagation(); controls.releaseAction("nitro-key");
     });
-    root.addEventListener("focusout", event => {
-      const button = (event.target as Element).closest<HTMLButtonElement>("[data-drive]");
-      if (button) controls.releaseAction("pad-key:" + button.dataset.drive);
-      this.refresh();
-    });
+    nitro.addEventListener("focusout", () => controls.releaseAction("nitro-key"));
+  }
+  private move(event: PointerEvent): void {
+    const rect = this.root.getBoundingClientRect();
+    const travel = rect.width * 0.28;
+    const x = (event.clientX - rect.left - rect.width / 2) / travel;
+    const y = (event.clientY - rect.top - rect.height / 2) / travel;
+    const radius = Math.max(1, Math.hypot(x, y));
+    this.x = x / radius; this.y = y / radius;
+    const axes = joystickAxes(this.x, this.y);
+    this.controls.setStick(axes.x, axes.y);
+  }
+  private releaseStick(): void {
+    const id = this.pointer;
+    this.pointer = null;
+    this.x = this.y = 0;
+    // Physical input stops immediately; the spring only animates the released handle.
+    this.controls.setStick(0, 0);
+    this.root.classList.remove("is-held");
+    if (id !== null && this.root.hasPointerCapture(id)) this.root.releasePointerCapture(id);
+  }
+  update(dt: number, boosting: boolean): void {
+    // Substeps keep this damped spring stable on slow tablet frames.
+    let remaining = Math.min(dt, 0.1);
+    while (remaining > 0) {
+      const step = Math.min(remaining, 1 / 120);
+      this.velocityX += ((this.x - this.visualX) * 420 - this.velocityX * 32) * step;
+      this.velocityY += ((this.y - this.visualY) * 420 - this.velocityY * 32) * step;
+      this.visualX += this.velocityX * step; this.visualY += this.velocityY * step;
+      remaining -= step;
+    }
+    this.knob.style.transform = `translate(${this.visualX * 77.78}%, ${this.visualY * 77.78}%)`;
+    this.root.style.setProperty("--roll-x", `${-this.visualY * 90}deg`);
+    this.root.style.setProperty("--roll-y", `${this.visualX * 90}deg`);
+    this.nitro.classList.toggle("is-held", this.controls.actionHeld("turbo"));
+    this.nitro.classList.toggle("is-boosting", boosting);
+    this.nitro.setAttribute("aria-pressed", String(this.controls.actionHeld("turbo")));
   }
   setTurboAvailable(available: boolean): void {
-    const button = this.buttons.find(button => button.dataset.drive === "turbo")!;
-    button.disabled = !available;
-    button.title = available ? "Hold with throttle for turbo" : "Turbo is available on BuggY";
-  }
-  private refresh(): void {
-    for (const button of this.buttons) {
-      const active = this.controls.actionHeld(button.dataset.drive as DriveAction);
-      button.classList.toggle("is-held", active);
-      button.setAttribute("aria-pressed", String(active));
-    }
+    this.nitro.disabled = !available;
+    this.nitro.title = available ? "Hold with forward throttle, or during cruise" : "Nitro is available on BuggY";
   }
   clear(): void {
-    const held = [...this.pointers.entries()];
-    this.pointers.clear();
-    for (const [id, entry] of held) {
-      this.controls.releaseAction(entry.source);
-      if (entry.button.hasPointerCapture(id)) entry.button.releasePointerCapture(id);
+    this.releaseStick();
+    for (const id of this.nitroPointers) {
+      this.controls.releaseAction("nitro:" + id);
+      if (this.nitro.hasPointerCapture(id)) this.nitro.releasePointerCapture(id);
     }
-    for (const button of this.buttons) this.controls.releaseAction("pad-key:" + button.dataset.drive);
-    this.refresh();
+    this.nitroPointers.clear();
+    this.controls.releaseAction("nitro-key");
+    this.nitro.classList.remove("is-held", "is-boosting");
+    this.nitro.setAttribute("aria-pressed", "false");
   }
 }

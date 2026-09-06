@@ -92,14 +92,20 @@
           <button type="button" id="vehicle-reset">Reset</button>
           <button type="button" id="camera-reset">Centre view</button>
         </div>
-        <div id="drive-pad" class="drive-pad" role="group" aria-label="Directional driving pad">
-          <button type="button" data-drive="forward" class="pad-up" aria-label="Throttle or start cruise" aria-pressed="false"><span aria-hidden="true">▲</span></button>
-          <button type="button" data-drive="left" class="pad-left" aria-label="Steer left" aria-pressed="false"><span aria-hidden="true">◀</span></button>
-          <button type="button" data-drive="turbo" class="pad-turbo" aria-label="Turbo, hold with throttle" aria-pressed="false">TURBO</button>
-          <button type="button" data-drive="right" class="pad-right" aria-label="Steer right" aria-pressed="false"><span aria-hidden="true">▶</span></button>
-          <button type="button" data-drive="brake" class="pad-down" aria-label="Brake or reverse; stop cruise" aria-pressed="false"><span aria-hidden="true">▼</span></button>
+        <div id="drive-pad" class="drive-pad" tabindex="0" role="group" aria-label="Analog driving joystick" aria-describedby="stick-help">
+          <span class="stick-label stick-north" aria-hidden="true">GAS</span>
+          <span class="stick-label stick-west" aria-hidden="true">◀</span>
+          <span class="stick-label stick-east" aria-hidden="true">▶</span>
+          <span class="stick-label stick-south" aria-hidden="true">BRAKE / R</span>
+          <span class="stick-well" aria-hidden="true"></span>
+          <span class="stick-knob" aria-hidden="true"><span class="stick-ball"><span class="stick-meridians"></span></span></span>
         </div>
+        <p id="stick-help" class="stick-help">Tilt to drive · release to coast</p>
         <p class="touch-hint">Drag scene · 360° / pinch · zoom</p>
+      </section>
+
+      <section class="nitro-dock" aria-label="Left hand boost control">
+        <button id="nitro-button" type="button" aria-label="Nitro, hold with forward throttle or during cruise" aria-pressed="false"><span>NITRO</span><small>HOLD</small></button>
       </section>
 
       <div id="notice" class="notice" role="status" aria-live="polite"></div>

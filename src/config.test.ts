@@ -200,6 +200,56 @@ describe("manual input and cruise state", () => {
 });
 
 import { DroneCamera } from "./drone-camera";
+import { joystickAxes } from "./joystick";
+
+test("analog stick mixes proportional throttle and steering, with a neutral coasting axis", () => {
+  const controls = new DriveControls();
+  const diagonal = joystickAxes(0.5, -0.5);
+  controls.setStick(diagonal.x, diagonal.y);
+  expect(controls.input().throttle).toBeGreaterThan(0.2);
+  expect(controls.input().throttle).toBeLessThan(0.5);
+  expect(controls.input().steer).toBeCloseTo(-controls.input().throttle);
+  controls.pressAction("left-hand", "turbo");
+  expect(controls.input().turbo).toBe(true);
+  const coast = joystickAxes(0.8, 0.08);
+  controls.setStick(coast.x, coast.y);
+  expect(controls.input()).toMatchObject({ throttle: 0, brake: 0, turbo: false });
+  expect(controls.input().steer).toBeLessThan(-0.5);
+  controls.setStick(0, 0.6);
+  expect(controls.input()).toMatchObject({ throttle: 0, brake: 0.6, turbo: false });
+  controls.keyDown("KeyW");
+  expect(controls.input().throttle).toBe(0);
+  controls.cancel();
+  expect(controls.input()).toMatchObject({ throttle: 0, brake: 0, steer: 0, turbo: false });
+  expect(joystickAxes(0.06, -0.08)).toMatchObject({ x: 0, y: 0 });
+  expect(joystickAxes(NaN, 1)).toEqual({ x: 0, y: 0 });
+  const edge = joystickAxes(10, -10);
+  expect(edge.x).toBeCloseTo(-edge.y);
+  expect(edge.x).toBeLessThan(1);
+});
+
+test("analog forward starts cruise once, analog brake cancels and cannot immediately restart", () => {
+  const controls = new DriveControls();
+  controls.setAvailable(true); controls.setMode("cruise");
+  controls.setStick(0, -0.4);
+  expect(controls.active).toBe(true);
+  controls.keyDown("KeyS"); controls.keyUp("KeyS");
+  controls.setStick(0.1, -0.5);
+  expect(controls.active).toBe(false);
+  controls.setStick(0, 0); controls.setStick(0, -0.3);
+  expect(controls.active).toBe(true);
+  controls.setStick(0.4, 0.2);
+  expect(controls.input().holdBrake).toBe(true);
+  controls.setStick(0, 0);
+  expect(controls.active).toBe(false);
+});
+
+test("partial brake slows forward travel before applying proportional reverse", () => {
+  const braking = driveForces(5, 0, 0.4, BUGGY_SPEC);
+  expect(braking.engine).toBe(0);
+  expect(braking.brake).toBeCloseTo(BUGGY_SPEC.brakeForce * 0.4);
+  expect(driveForces(0, 0, 0.4, BUGGY_SPEC).engine).toBeCloseTo(-BUGGY_SPEC.reverseForce * 0.4);
+});
 
 test("pad fingers compose with keyboard and release independently", () => {
   const controls = new DriveControls();

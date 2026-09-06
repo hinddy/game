@@ -5,6 +5,9 @@ interface Window {
     setInput(input: { throttle: number; brake: number; steer: number; turbo?: boolean }): void;
     snapshot(): {
       speedKph: number;
+      signedSpeedKph: number;
+      steeringAngle: number;
+      steeringControlAngle: number;
       position: { x: number; y: number; z: number };
       wheelContacts: boolean[];
       track: string;

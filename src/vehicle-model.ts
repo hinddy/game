@@ -31,11 +31,13 @@ function bake(group: THREE.Group): void {
 }
 
 export function buildVehicleModel(spec: VehicleSpec): {
-  body: THREE.Group; wheels: THREE.Group[];
+  body: THREE.Group; wheels: THREE.Group[]; steering: THREE.Group;
 } {
   const buggy = spec.id.startsWith("buggy");
   const body = new THREE.Group();
   body.name = buggy ? "BuggY" : "Quadro";
+  const steering = new THREE.Group();
+  steering.name = "steering-control";
   const surface = (color: number, roughness: number, metalness = 0) =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness });
   const navy = surface(0x12345a, 0.4, 0.45);
@@ -81,9 +83,9 @@ export function buildVehicleModel(spec: VehicleSpec): {
       from.addScaledVector(delta, 0.5).toArray() as Point, parent);
     item.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
   }
-  function tube(points: Point[], radius: number, m = frame): void {
+  function tube(points: Point[], radius: number, m = frame, parent = body): void {
     mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p))),
-      points.length * 4, radius, 8, false), m, [0, 0, 0]);
+      points.length * 4, radius, 8, false), m, [0, 0, 0], parent);
   }
   function cylinder(radius: number, depth: number, p: Point, m: THREE.Material, axis: "x" | "z" = "x"): void {
     const item = mesh(new THREE.CylinderGeometry(radius, radius, depth, 24), m, p);
@@ -125,8 +127,9 @@ export function buildVehicleModel(spec: VehicleSpec): {
     lamp(0, 0.35, halfBase + 0.23, 0.105);
     cylinder(0.055, 0.06, [0, 0.49, halfBase + 0.23], steel, "z");
     rod([0, 0.12, 0.31], [0, 0.83, 0.31], 0.022, navy);
-    tube([[-0.43, 1.08, 0.32], [-0.22, 1.07, 0.32], [0.03, 0.84, 0.32],
-      [0.35, 0.83, 0.32]], 0.025, steel);
+    steering.position.set(0, 0.83, 0.31);
+    tube([[-0.43, 0.25, 0.01], [-0.22, 0.24, 0.01], [0.03, 0.01, 0.01],
+      [0.35, 0, 0.01]], 0.025, steel, steering);
   } else {
     for (const side of [-1, 1]) {
       const x = side * 0.49;
@@ -149,12 +152,15 @@ export function buildVehicleModel(spec: VehicleSpec): {
     back.rotation.x = -0.15;
     for (const x of [-0.24, 0.24]) box([0.08, 0.47, 0.1], [x, 0.82, -0.38], navy, 0.02);
     rod([0, 0.31, 0.37], [0, 0.85, 0.16], 0.024, steel);
-    const wheel = mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 32), rubber, [0, 0.85, 0.16]);
-    wheel.rotation.x = -0.4;
+    const column = new THREE.Group();
+    column.position.set(0, 0.85, 0.16);
+    column.rotation.x = -0.4;
+    column.add(steering);
+    body.add(column);
+    mesh(new THREE.TorusGeometry(0.19, 0.016, 8, 32), rubber, [0, 0, 0], steering);
     for (let i = 0; i < 3; i++) {
       const angle = i * Math.PI * 2 / 3;
-      rod([0, 0.85, 0.16], [Math.cos(angle) * 0.18, 0.85 + Math.sin(angle) * 0.166,
-        0.16 - Math.sin(angle) * 0.07], 0.009, steel);
+      rod([0, 0, 0], [Math.cos(angle) * 0.18, Math.sin(angle) * 0.18, 0], 0.009, steel, steering);
     }
   }
   // Exposed engine, cooling fins and a two-run belt suggest mechanics without tiny links.
@@ -167,6 +173,8 @@ export function buildVehicleModel(spec: VehicleSpec): {
     tube([[0.25, 0.27, -0.5], [0.43, 0.24, -0.72], [0.43, 0.3, -1.02]], 0.035, steel);
     cylinder(0.042, 0.045, [0.43, 0.3, -1.025], dark, "z");
   }
+  bake(steering);
+  if (!buggy) body.add(steering);
   bake(body);
 
   const wheelTemplate = new THREE.Group();
@@ -190,7 +198,7 @@ export function buildVehicleModel(spec: VehicleSpec): {
       buggy ? 0.012 : 0.005, buggy ? orange : steel, wheelTemplate);
   }
   bake(wheelTemplate);
-  return { body, wheels: Array.from({ length: 4 }, () => wheelTemplate.clone(true)) };
+  return { body, wheels: Array.from({ length: 4 }, () => wheelTemplate.clone(true)), steering };
 }
 
 function indexGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeometry {

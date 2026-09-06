@@ -34,6 +34,7 @@ export class GarageVehicle {
   private readonly wheelRoots: THREE.Group[] = [];
   private readonly wheelSpinners: THREE.Group[] = [];
   private steering = 0;
+  private steeringControl!: THREE.Group;
   boost = 0;
   private throttle = 0;
   private cruiseTargetKph: number | null = null;
@@ -117,6 +118,7 @@ export class GarageVehicle {
   private buildVisual(): void {
     this.visual.name = "vehicle:" + this.spec.id;
     const model = buildVehicleModel(this.spec);
+    this.steeringControl = model.steering;
     this.visual.add(model.body);
     for (const spinner of model.wheels) {
       const root = new THREE.Group();
@@ -135,7 +137,7 @@ export class GarageVehicle {
     const speedKph = metersPerSecondToKph(this.controller.currentVehicleSpeed());
     const normalizedSpeed = THREE.MathUtils.clamp(Math.abs(speedKph) / this.spec.targetTopSpeedKph, 0, 1);
     const steeringLimit = THREE.MathUtils.lerp(this.spec.maxSteerRad, this.spec.maxSteerRad * 0.34, normalizedSpeed);
-    this.steering = THREE.MathUtils.lerp(this.steering, input.steer * steeringLimit, 0.16);
+    this.steering = THREE.MathUtils.damp(this.steering, input.steer * steeringLimit, 10.46, dt);
 
     const cruising = input.cruiseSpeedKph !== undefined && input.throttle > 0 && input.brake <= 0 && !input.holdBrake;
     let forces: { engine: number; brake: number };
@@ -170,6 +172,8 @@ export class GarageVehicle {
     const rotation = this.body.rotation();
     this.visual.position.set(translation.x, translation.y, translation.z);
     this.visual.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+    if (this.spec.id.startsWith("buggy")) this.steeringControl.rotation.z = -this.steering / this.spec.maxSteerRad * Math.PI / 2;
+    else this.steeringControl.rotation.y = this.steering;
 
     for (let index = 0; index < this.wheelRoots.length; index += 1) {
       const connection = this.controller.wheelChassisConnectionPointCs(index);
@@ -186,6 +190,10 @@ export class GarageVehicle {
   }
 
   get engineLoad(): number { return this.throttle; }
+  get steeringAngle(): number { return this.steering; }
+  get steeringControlAngle(): number {
+    return this.spec.id.startsWith("buggy") ? this.steeringControl.rotation.z : this.steeringControl.rotation.y;
+  }
 
   get exhaustParticles(): number { return this.exhaust?.activeParticles ?? 0; }
 

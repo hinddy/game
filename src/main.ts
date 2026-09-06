@@ -8,6 +8,7 @@ import { BonnevilleRuntime, SALT_PLAYABLE_HALF_SIZE } from "./bonneville";
 import { EngineAudio } from "./engine-audio";
 import { DriveControls } from "./drive-controls";
 import { DrivePad } from "./drive-pad";
+import { metersPerSecondToKph } from "./vehicle-drive";
 import { DroneCamera, DroneGestures } from "./drone-camera";
 import { BONNEVILLE_SUN_DIRECTION } from "./bonneville-light";
 
@@ -123,7 +124,7 @@ const boostStatus = requiredElement<HTMLElement>("#boost-status");
 const vehicleRestriction = requiredElement<HTMLElement>("#vehicle-restriction");
 
 const driveControls = new DriveControls();
-const drivePad = new DrivePad(requiredElement<HTMLElement>("#drive-pad"), driveControls, () => {
+const drivePad = new DrivePad(requiredElement<HTMLElement>("#drive-pad"), requiredElement<HTMLButtonElement>("#nitro-button"), driveControls, () => {
   devInput = null;
   unlockAudio();
 });
@@ -172,7 +173,7 @@ function updateDriveUI(): void {
   driveModeControl.value = driveControls.mode;
   const forwardLabel = touchDevice ? "▲" : "W";
   const brakeLabel = touchDevice ? "▼" : "S";
-  const boostLabel = touchDevice ? "TURBO" : "Shift";
+  const boostLabel = touchDevice ? "NITRO" : "Shift";
   driveModeControl.querySelector<HTMLOptionElement>('option[value="manual"]')!.textContent = `Manual · hold ${forwardLabel}`;
   driveModeControl.querySelector<HTMLOptionElement>('option[value="cruise"]')!.textContent = `Cruise · tap ${forwardLabel}`;
   throttleHelp.textContent = driveControls.mode === "cruise" ? "start cruise" : "drive";
@@ -236,7 +237,7 @@ function createRuntime(trackId: TrackId): Runtime {
     button.disabled = !!spec.vehicleOnly && button.dataset.vehicle !== spec.vehicleOnly;
   });
   vehicleRestriction.textContent = spec.vehicleOnly ? "Bonneville · BuggY only" : "Switching starts a new session";
-  boostStatus.textContent = VEHICLES[activeVehicle].turbo ? (touchDevice ? "▲ + TURBO · boost" : "Shift + W · TURBO") : "Turbo unavailable";
+  boostStatus.textContent = VEHICLES[activeVehicle].turbo ? (touchDevice ? "Tilt forward + NITRO" : "Shift + W · NITRO") : "Nitro unavailable";
   surfaceElement.textContent = spec.surface;
   trackCodeElement.textContent = spec.code;
   speedElement.textContent = "0";
@@ -441,6 +442,7 @@ function frame(now: number): void {
   if (document.hidden) { previousTime = now; accumulator = 0; return; }
 
   const frameDt = Math.min((now - previousTime) / 1000, 0.1);
+  drivePad.update(frameDt, runtime.vehicle.boost > 0.05);
   previousTime = now;
   accumulator += frameDt;
 
@@ -463,7 +465,7 @@ function frame(now: number): void {
   runtime.vehicle.updateEffects(frameDt, window.innerHeight * renderer.getPixelRatio());
   engineAudio.update(runtime.vehicle.speedKph(), runtime.vehicle.engineLoad, runtime.vehicle.boost, activeVehicle === "buggy");
   updateDriveUI();
-  boostStatus.textContent = runtime.vehicle.boost > 0.05 ? "TURBO ACTIVE" : activeVehicle === "buggy" ? driveControls.mode === "cruise" ? "Shift · TURBO while cruising" : (touchDevice ? "▲ + TURBO · boost" : "Shift + W · TURBO") : "Turbo unavailable";
+  boostStatus.textContent = runtime.vehicle.boost > 0.05 ? "NITRO ACTIVE" : activeVehicle === "buggy" ? driveControls.mode === "cruise" ? (touchDevice ? "Hold NITRO while cruising" : "Shift · NITRO while cruising") : (touchDevice ? "Tilt forward + NITRO" : "Shift + W · NITRO") : "Nitro unavailable";
   boostStatus.classList.toggle("is-boosting", runtime.vehicle.boost > 0.05);
   updateCamera(runtime, frameDt);
   runtime.track.stream(now, runtime.vehicle.position(vehiclePosition), camera.getWorldDirection(cameraViewDirection));
@@ -498,6 +500,9 @@ async function start(): Promise<void> {
         const position = runtime.vehicle.position();
         return {
           speedKph: runtime.vehicle.speedKph(),
+          signedSpeedKph: metersPerSecondToKph(runtime.vehicle.controller.currentVehicleSpeed()),
+          steeringAngle: runtime.vehicle.steeringAngle,
+          steeringControlAngle: runtime.vehicle.steeringControlAngle,
           position: { x: position.x, y: position.y, z: position.z },
           wheelContacts: Array.from(
             { length: runtime.vehicle.controller.numWheels() },
@@ -546,6 +551,7 @@ start().catch((error: unknown) => {
   details.textContent = message;
   loadingElement.append(title, details);
 });
+
 
 
 
