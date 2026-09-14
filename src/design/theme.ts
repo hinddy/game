@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export type ThemeName = "salt" | "material" | "shadcn";
+export type ThemeName = string;
 export type MaterialRole = "surface" | "accent" | "border" | "text";
 export type ThemeTokens = Record<MaterialRole, string> & { radius: number; roughness: number; metalness: number };
 export const DEFAULT_TOKENS: ThemeTokens = { surface: "#142333", accent: "#ff790d", border: "#61758a", text: "#edf3fa", radius: .12, roughness: .7, metalness: .12 };

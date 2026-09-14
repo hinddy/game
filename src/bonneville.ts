@@ -197,10 +197,9 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
   }
 
   async attachWorlds(world: RAPIER.World, scene: THREE.Scene, theme: ThemeBridge, renderer: THREE.WebGLRenderer, camera: THREE.Camera, shadows: boolean): Promise<void> {
-    const { WorldStreamer } = await import("./worlds/streamer");
+    const { createGarageStreamer } = await import("./worlds/garage-streaming");
     if (this.disposed) return;
-    this.streamer = new WorldStreamer({ world, scene, theme, shadows, course: () => this.buildCourse(),
-      prepare: group => renderer.compileAsync(group, camera, scene) });
+    this.streamer = createGarageStreamer(world,scene,theme,shadows,()=>this.buildCourse(),group=>renderer.compileAsync(group,camera,scene));
   }
   setViewRadius(radius: number): void { this.viewRadius = radius; }
 
@@ -297,6 +296,3 @@ export class BonnevilleRuntime implements Pick<TrackRuntime,
     });
   }
 }
-
-
-

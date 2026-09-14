@@ -71,6 +71,7 @@ export class EngineAudio {
   get state(): string { return this.context?.state ?? "locked"; }
   get level(): number { return this.muted ? 0 : this.volume; }
   dispose(): void {
+    if(!this.context)return;
     this.oscillator?.stop(); this.harmonic?.stop(); this.noise?.stop();
     if (this.context) void this.context.close().catch(() => {});
     this.context = null;

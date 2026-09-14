@@ -36,6 +36,7 @@
       "forceMultiplier": 1.65,
       "responseSeconds": 0.25,
       "topSpeedKph": 90
-    }
+    },
+    "model": "buggy"
   }
 }

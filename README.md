@@ -334,7 +334,7 @@ distance scales with zoom to prevent coplanar-surface flicker at large distances
 
 ### Verification
 
-`bun run verify` includes 23 tests, JSON budgets/schema, a 1000-candidate residency
+`bun run verify` includes 34 tests, JSON budgets/schema, a 1000-candidate residency
 cap, shared geometry and the existing driving regressions. Optional browser scripts
 use an existing Playwright installation via `PLAYWRIGHT_MODULE_PATH`:
 
@@ -346,9 +346,14 @@ use an existing Playwright installation via `PLAYWRIGHT_MODULE_PATH`:
 - `scripts/worlds-production.cjs`: the three entry URLs, separate packet fetches,
   no production debug API and keyboard launch with a focused volume slider.
 
-Observed across three return cycles: each side returns to 23 geometries and five
+Observed across three return cycles: each side returns to 24 geometries and five
 textures; Material has 44 colliders including the shared floor/car, shadcn has 31.
 JS heap is measured separately from WASM/GPU memory; small warm-cache/JIT growth
 is allowed rather than treating a heap sample as an exact memory-leak proof.
 The 3G-like test uses 400 ms latency, 50 kB/s download and 4x CPU slowdown.
 These are desktop Chromium emulation results, not a physical Android certification.
+
+
+## Modular runtime (September 2026)
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for extension points, ownership, configuration and regression commands. The four grounds, both vehicles and the three world packets are preserved. No second project or new gameplay mode is included.
